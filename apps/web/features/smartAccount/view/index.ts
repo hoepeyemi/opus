@@ -1,0 +1,1 @@
+export { SmartAccountBadge } from './SmartAccountBadge'
