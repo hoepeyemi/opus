@@ -22,6 +22,34 @@ import { paymentNonceRepository } from '@/lib/repositories'
 // Cost to generate a wallet: $0.50 in USDC (6 decimals)
 const WALLET_GENERATION_COST = 500000
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitForDelegationCode(
+  publicClient: Pick<ReturnType<typeof createPublicClient>, 'getCode'>,
+  targetAddress: Address,
+  expectedCode: Hex
+): Promise<Hex | undefined> {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const code = await publicClient.getCode({
+      address: targetAddress,
+    })
+
+    if (code?.toLowerCase() === expectedCode.toLowerCase()) {
+      return code
+    }
+
+    if (attempt < 11) {
+      await sleep(1_000)
+    }
+  }
+
+  return publicClient.getCode({
+    address: targetAddress,
+  })
+}
+
 /**
  * Relay an EIP-7702 enablement transaction.
  *
@@ -319,9 +347,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the delegation was applied
-    const newCode = await publicClient.getCode({
-      address: targetAddress as Address,
-    })
+    const newCode = await waitForDelegationCode(
+      publicClient,
+      targetAddress as Address,
+      expectedCode as Hex
+    )
 
     if (newCode?.toLowerCase() !== expectedCode.toLowerCase()) {
       console.error('[Enable7702] Delegation verification failed:', {

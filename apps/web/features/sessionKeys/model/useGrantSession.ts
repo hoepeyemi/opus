@@ -1,8 +1,16 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { useWalletClient, usePublicClient, useConnection } from 'wagmi'
-import { encodeFunctionData, decodeEventLog, type Hex } from 'viem'
+import { usePublicClient, useConnection, useSignMessage, useSignTypedData } from 'wagmi'
+import {
+  decodeEventLog,
+  encodeAbiParameters,
+  hashTypedData,
+  keccak256,
+  parseAbiParameters,
+  type Address,
+  type Hex,
+} from 'viem'
 import { agentDelegatorAbi } from '@x402/contracts'
 import { generateSessionKey } from '@/lib/sessionKeys'
 import type { SessionScope } from '@/lib/sessionKeys/types'
@@ -22,6 +30,50 @@ export interface GrantSessionParams {
   scopes?: SessionScope[]
   /** @deprecated Use scopes instead. Contracts approved for EIP-1271 signatures */
   approvedContracts?: ApprovedContract[]
+}
+
+const GRANT_SESSION_TYPES = {
+  GrantSession: [
+    { name: 'sessionKey', type: 'address' },
+    { name: 'allowedTargetsHash', type: 'bytes32' },
+    { name: 'allowedSelectorsHash', type: 'bytes32' },
+    { name: 'validAfter', type: 'uint48' },
+    { name: 'validUntil', type: 'uint48' },
+    { name: 'approvedContractsHash', type: 'bytes32' },
+    { name: 'nonce', type: 'uint256' },
+  ],
+} as const
+
+function hashGrantArrayValues(contractArgs: ReturnType<typeof toContractArgs>) {
+  return {
+    allowedTargetsHash: keccak256(
+      encodeAbiParameters(
+        parseAbiParameters('address[]'),
+        [contractArgs.allowedTargets]
+      )
+    ),
+    allowedSelectorsHash: keccak256(
+      encodeAbiParameters(
+        parseAbiParameters('bytes4[]'),
+        [contractArgs.allowedSelectors]
+      )
+    ),
+    approvedContractsHash: keccak256(
+      encodeAbiParameters(
+        [
+          {
+            type: 'tuple[]',
+            components: [
+              { name: 'contractAddress', type: 'address' },
+              { name: 'nameHash', type: 'bytes32' },
+              { name: 'versionHash', type: 'bytes32' },
+            ],
+          },
+        ],
+        [contractArgs.approvedContracts]
+      )
+    ),
+  }
 }
 
 export type GrantSessionStatus =
@@ -54,15 +106,16 @@ export interface UseGrantSessionReturn {
  */
 export function useGrantSession(): UseGrantSessionReturn {
   const { address, chainId } = useConnection()
-  const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
+  const { signTypedDataAsync } = useSignTypedData()
+  const { signMessageAsync } = useSignMessage()
 
   const [status, setStatus] = useState<GrantSessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
   const grantSession = useCallback(async (params: GrantSessionParams): Promise<string> => {
-    if (!walletClient || !publicClient || !address || !chainId) {
+    if (!publicClient || !address || !chainId) {
       throw new Error('Wallet not connected')
     }
 
@@ -86,6 +139,12 @@ export function useGrantSession(): UseGrantSessionReturn {
       // Step 4: Flatten scopes to on-chain parameters
       const onChainParams = flattenScopesToOnChainParams(scopes)
       const contractArgs = toContractArgs(onChainParams)
+      const sessionNonce = await publicClient.readContract({
+        address: address as Address,
+        abi: agentDelegatorAbi,
+        functionName: 'getSessionNonce',
+      })
+      const grantHashes = hashGrantArrayValues(contractArgs)
 
       console.log('[grantSession] Prepared parameters:', {
         sessionKeyAddress,
@@ -93,30 +152,88 @@ export function useGrantSession(): UseGrantSessionReturn {
         onChainParams,
         validAfter,
         validUntil,
+        sessionNonce: sessionNonce.toString(),
       })
 
       setStatus('signing')
 
-      // Step 5: Send grantSession transaction
-      // Since grantSession requires msg.sender == address(this),
-      // we call it on our own address (the delegated EOA)
-      const hash = await walletClient.sendTransaction({
-        to: address, // Call on self (delegated EOA)
-        data: encodeFunctionData({
-          abi: agentDelegatorAbi,
-          functionName: 'grantSession',
-          args: [
-            sessionKeyAddress,
-            contractArgs.allowedTargets,
-            contractArgs.allowedSelectors,
-            validAfter,
-            validUntil,
-            contractArgs.approvedContracts, // Approved contracts for EIP-1271
-          ],
+      // Step 5: Sign a grantSession authorization and relay it.
+      // Wallet providers can reject direct self-calls with calldata for EIP-7702
+      // accounts, so the owner signs typed data and the relayer submits it.
+      const grantDomain = {
+        name: 'AgentDelegator',
+        version: '1',
+        chainId,
+        verifyingContract: address as Address,
+      } as const
+      const grantMessage = {
+        sessionKey: sessionKeyAddress,
+        ...grantHashes,
+        validAfter,
+        validUntil,
+        nonce: sessionNonce,
+      } as const
+
+      let ownerSignature: Hex
+      let signatureScheme: 'typedData' | 'message' = 'typedData'
+
+      try {
+        ownerSignature = await signTypedDataAsync({
+          domain: grantDomain,
+          types: GRANT_SESSION_TYPES,
+          primaryType: 'GrantSession',
+          message: grantMessage,
+        })
+      } catch (signError) {
+        const signErrorMessage = signError instanceof Error ? signError.message : String(signError)
+        const canFallbackToMessage =
+          signErrorMessage.includes('External signature requests cannot use internal accounts') ||
+          signErrorMessage.includes('verifying contract')
+
+        if (!canFallbackToMessage) {
+          throw signError
+        }
+
+        console.warn('[grantSession] Typed-data signing blocked, falling back to message signature')
+        const grantDigest = hashTypedData({
+          domain: grantDomain,
+          types: GRANT_SESSION_TYPES,
+          primaryType: 'GrantSession',
+          message: grantMessage,
+        })
+
+        ownerSignature = await signMessageAsync({
+          message: { raw: grantDigest },
+        })
+        signatureScheme = 'message'
+      }
+
+      const relayResponse = await fetch('/api/relayer/grant-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerAddress: address,
+          sessionKeyAddress,
+          allowedTargets: contractArgs.allowedTargets,
+          allowedSelectors: contractArgs.allowedSelectors,
+          validAfter,
+          validUntil,
+          approvedContracts: contractArgs.approvedContracts,
+          nonce: sessionNonce.toString(),
+          ownerSignature,
+          signatureScheme,
+          chainId,
         }),
       })
 
-      console.log('[grantSession] Transaction sent:', hash)
+      const relayResult = await relayResponse.json()
+
+      if (!relayResponse.ok || !relayResult.txHash) {
+        throw new Error(relayResult.error || 'Failed to relay grantSession transaction')
+      }
+
+      const hash = relayResult.txHash as Hex
+      console.log('[grantSession] Transaction relayed:', hash)
       setStatus('confirming')
 
       // Step 6: Wait for confirmation
@@ -192,7 +309,7 @@ export function useGrantSession(): UseGrantSessionReturn {
       setStatus('error')
       throw err
     }
-  }, [walletClient, publicClient, address, chainId])
+  }, [publicClient, address, chainId, signMessageAsync, signTypedDataAsync])
 
   const reset = useCallback(() => {
     setStatus('idle')

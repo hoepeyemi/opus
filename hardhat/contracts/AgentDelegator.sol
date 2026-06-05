@@ -114,6 +114,10 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
     bytes32 private constant EXECUTE_WITH_SESSION_TYPEHASH =
         keccak256("ExecuteWithSession(bytes32 sessionId,bytes32 mode,bytes executionData)");
 
+    // EIP-712 typehash for relayed session grants.
+    bytes32 private constant GRANT_SESSION_TYPEHASH =
+        keccak256("GrantSession(address sessionKey,bytes32 allowedTargetsHash,bytes32 allowedSelectorsHash,uint48 validAfter,uint48 validUntil,bytes32 approvedContractsHash,uint256 nonce)");
+
     function _domainSeparatorV4() internal view returns (bytes32) {
         return keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)));
     }
@@ -144,6 +148,146 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
     ) external returns (bytes32 sessionId) {
         require(msg.sender == address(this), "Only owner");
 
+        sessionId = _grantSession(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts
+        );
+    }
+
+    /// @notice Grant a new session using an owner EIP-712 signature.
+    /// @dev Allows relayers to create sessions without requiring a wallet to
+    /// send calldata from the delegated EOA to itself.
+    function grantSessionWithSignature(
+        address sessionKey,
+        address[] calldata allowedTargets,
+        bytes4[] calldata allowedSelectors,
+        uint48 validAfter,
+        uint48 validUntil,
+        ApprovedContract[] calldata approvedContracts,
+        uint256 nonce,
+        bytes calldata ownerSignature
+    ) external returns (bytes32 sessionId) {
+        _requireValidGrantSessionSignature(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts,
+            nonce,
+            ownerSignature,
+            false
+        );
+
+        sessionId = _grantSession(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts
+        );
+    }
+
+    /// @notice Grant a new session using an owner EIP-191 signature over the
+    /// EIP-712 grant digest. Some wallet providers reject external typed-data
+    /// signatures whose verifying contract is an internal/delegated account;
+    /// this path lets the same owner authorize via personal_sign/signMessage.
+    function grantSessionWithMessageSignature(
+        address sessionKey,
+        address[] calldata allowedTargets,
+        bytes4[] calldata allowedSelectors,
+        uint48 validAfter,
+        uint48 validUntil,
+        ApprovedContract[] calldata approvedContracts,
+        uint256 nonce,
+        bytes calldata ownerSignature
+    ) external returns (bytes32 sessionId) {
+        _requireValidGrantSessionSignature(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts,
+            nonce,
+            ownerSignature,
+            true
+        );
+
+        sessionId = _grantSession(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts
+        );
+    }
+
+    function _requireValidGrantSessionSignature(
+        address sessionKey,
+        address[] calldata allowedTargets,
+        bytes4[] calldata allowedSelectors,
+        uint48 validAfter,
+        uint48 validUntil,
+        ApprovedContract[] calldata approvedContracts,
+        uint256 nonce,
+        bytes calldata ownerSignature,
+        bool ethSignedMessage
+    ) internal view {
+        require(nonce == _getDelegatorStorage().sessionNonce, "Invalid nonce");
+
+        bytes32 digest = _grantSessionDigest(
+            sessionKey,
+            allowedTargets,
+            allowedSelectors,
+            validAfter,
+            validUntil,
+            approvedContracts,
+            nonce
+        );
+
+        if (ethSignedMessage) {
+            digest = MessageHashUtils.toEthSignedMessageHash(digest);
+        }
+
+        require(digest.recover(ownerSignature) == address(this), "Invalid owner signature");
+    }
+
+    function _grantSessionDigest(
+        address sessionKey,
+        address[] calldata allowedTargets,
+        bytes4[] calldata allowedSelectors,
+        uint48 validAfter,
+        uint48 validUntil,
+        ApprovedContract[] calldata approvedContracts,
+        uint256 nonce
+    ) internal view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(
+            GRANT_SESSION_TYPEHASH,
+            sessionKey,
+            keccak256(abi.encode(allowedTargets)),
+            keccak256(abi.encode(allowedSelectors)),
+            validAfter,
+            validUntil,
+            keccak256(abi.encode(approvedContracts)),
+            nonce
+        )));
+    }
+
+    function _grantSession(
+        address sessionKey,
+        address[] calldata allowedTargets,
+        bytes4[] calldata allowedSelectors,
+        uint48 validAfter,
+        uint48 validUntil,
+        ApprovedContract[] calldata approvedContracts
+    ) internal returns (bytes32 sessionId) {
         DelegatorStorage storage $ = _getDelegatorStorage();
 
         sessionId = keccak256(abi.encode(address(this), sessionKey, $.sessionNonce++));

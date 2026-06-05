@@ -44,6 +44,30 @@ interface RelayerResponse {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitForDelegationCode(
+  publicClient: Pick<ReturnType<typeof createPublicClient>, 'getCode'>,
+  address: Address,
+  expectedCode: string
+): Promise<Hex | undefined> {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const code = await publicClient.getCode({ address })
+
+    if (code?.toLowerCase() === expectedCode.toLowerCase()) {
+      return code
+    }
+
+    if (attempt < 11) {
+      await sleep(1_000)
+    }
+  }
+
+  return publicClient.getCode({ address })
+}
+
 /**
  * Generate a new wallet and enable EIP-7702 smart account delegation
  *
@@ -202,8 +226,12 @@ export async function generateAndEnableWallet({
     })
 
     // Step 5: Verify the delegation was applied (double-check from client side)
-    const code = await publicClient.getCode({ address: newAccount.address })
     const expectedCode = `0xef0100${contractAddress.slice(2).toLowerCase()}`
+    const code = await waitForDelegationCode(
+      publicClient,
+      newAccount.address,
+      expectedCode
+    )
 
     if (!code || code.toLowerCase() !== expectedCode.toLowerCase()) {
       console.error('[generateAndEnableWallet] Delegation verification failed:', {

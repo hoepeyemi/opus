@@ -49,6 +49,11 @@ export default defineConfig({
       default: {
         version: "0.8.29",
         settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+          viaIR: true,
           evmVersion: "prague",
         },
       },
@@ -59,6 +64,7 @@ export default defineConfig({
             enabled: true,
             runs: 200,
           },
+          viaIR: true,
           evmVersion: "prague",
         },
       },
