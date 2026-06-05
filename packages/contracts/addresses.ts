@@ -8,13 +8,12 @@ import type { Address } from 'viem'
 
 /**
  * AgentDelegator contract addresses by chain ID
+ *
+ * Base Sepolia deployments are configured in the web app via
+ * NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS until a canonical deployment
+ * is checked into this package.
  */
-export const AGENT_DELEGATOR_ADDRESS: Record<number, Address> = {
-  // Cronos Testnet (chain 338)
-  338: '0xA8734aA1db20bdc08fCf4E7C8657BF37f3c2e0b3',
-  // Cronos Mainnet (chain 25) - not yet deployed
-  25: '0x42592635fF346142c47351787134C9B1a21e71EC',
-} as const
+export const AGENT_DELEGATOR_ADDRESS: Record<number, Address> = {} as const
 
 /**
  * Get AgentDelegator address for a specific chain

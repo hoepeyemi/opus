@@ -1,5 +1,4 @@
 import { type Address } from 'viem'
-import * as x402Payment from '@x402/payment'
 import {
   buildTransferWithAuthorizationMessage,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
@@ -8,15 +7,12 @@ import {
   getNetworkFromChainId,
   buildPaymentHeader,
   encodePaymentHeader,
+  USDC_CONFIG,
   type SupportedChainId,
   type TransferWithAuthorizationMessage,
   type PaymentPayload,
   type PaymentHeader,
 } from '@x402/payment'
-
-const USDC_CONFIG = x402Payment[
-  ['USDC', 'E', 'CONFIG'].join('_') as keyof typeof x402Payment
-] as Partial<Record<SupportedChainId, { domainName: string; domainVersion: string }>>
 
 /**
  * x402 Client-side Payment Utilities

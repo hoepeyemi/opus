@@ -15,7 +15,7 @@ import {
   buildPaymentHeader,
   encodePaymentHeader,
   generateNonce,
-  getUsdceAddress,
+  getUsdcAddress,
   SESSION_SIGNATURE_TYPES,
 } from '@x402/payment'
 
@@ -129,7 +129,7 @@ export async function signPayment(params: {
 
   console.log('[SignPayment] Session account address:', sessionAccount.address)
 
-  const usdceAddress = getUsdceAddress(chainId)
+  const usdcAddress = getUsdcAddress(chainId)
   const nonce = generateNonce()
   const validAfter = 0n
   const validBefore = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 minutes validity
@@ -149,7 +149,7 @@ export async function signPayment(params: {
 
   // Build the SessionSignature message that the session key will sign
   const sessionSignatureMessage = {
-    verifyingContract: usdceAddress,
+    verifyingContract: usdcAddress,
     structHash,
   }
 
@@ -164,7 +164,7 @@ export async function signPayment(params: {
   // Build the 149-byte signature
   const fullSignature = buildSessionSignature({
     sessionId: session.sessionId as Hex,
-    verifyingContract: usdceAddress,
+    verifyingContract: usdcAddress,
     structHash,
     ecdsaSignature,
   })
@@ -175,7 +175,7 @@ export async function signPayment(params: {
   const paymentHeader = buildPaymentHeader({
     message,
     signature: fullSignature,
-    asset: usdceAddress,
+    asset: usdcAddress,
     chainId,
   })
 

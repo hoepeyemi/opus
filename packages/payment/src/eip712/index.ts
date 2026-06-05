@@ -1,6 +1,6 @@
 export {
   buildAgentDelegatorDomain,
-  buildUsdceDomain,
+  buildUsdcDomain,
   buildTokenDomain,
 } from './domains'
 

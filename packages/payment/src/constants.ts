@@ -4,7 +4,7 @@ import type { ChainConfig, SupportedChainId, NetworkId, TokenConfig } from './ty
 /**
  * USDC token configurations by chain
  */
-export const USDC_E_CONFIG: Record<SupportedChainId, TokenConfig> = {
+export const USDC_CONFIG: Record<SupportedChainId, TokenConfig> = {
   // Base Sepolia
   84532: {
     address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
@@ -22,7 +22,7 @@ export const CHAIN_CONFIGS: Record<SupportedChainId, ChainConfig> = {
   84532: {
     chainId: 84532,
     networkId: 'base-sepolia',
-    usdce: USDC_E_CONFIG[84532],
+    usdc: USDC_CONFIG[84532],
     rpcUrl: 'https://sepolia.base.org',
     officialFacilitatorUrl: 'https://x402.org/facilitator',
   },

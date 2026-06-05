@@ -35,6 +35,13 @@ interface RelayerResponse {
   blockNumber?: number
   error?: string
   message?: string
+  diagnostics?: {
+    txHash?: string
+    type?: string
+    authorizationListLength?: number
+    expectedCode?: string
+    actualCode?: string | null
+  }
 }
 
 /**
@@ -88,7 +95,12 @@ export async function generateAndEnableWallet({
 
     console.log('[generateAndEnableWallet] Generated new account:', newAccount.address)
 
-    // Step 2: Create local wallet client for the new account
+    // Step 2: Create clients for the new account and target chain.
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    })
+
     const newWalletClient = createWalletClient({
       account: newAccount,
       chain,
@@ -96,9 +108,16 @@ export async function generateAndEnableWallet({
     })
 
     // Step 3: Sign EIP-7702 authorization with the new account
-    // By not specifying an executor, anyone (including the relayer) can submit this authorization
-    const authorization = await newWalletClient.signAuthorization({
+    // Sign with chainId 0 so the authorization is valid on any EIP-7702
+    // chain. This avoids L2/RPC edge cases around chain-specific auth tuples.
+    const authorizationNonce = await publicClient.getTransactionCount({
+      address: newAccount.address,
+      blockTag: 'pending',
+    })
+    const authorization = await newAccount.signAuthorization({
       contractAddress,
+      chainId: 0,
+      nonce: authorizationNonce,
     })
 
     console.log('[generateAndEnableWallet] Authorization signed:', {
@@ -134,10 +153,28 @@ export async function generateAndEnableWallet({
 
     if (!response.ok) {
       console.error('[generateAndEnableWallet] Relayer error:', result)
+      const relayerDiagnostics = result.diagnostics
+      const diagnosticsMessage = relayerDiagnostics
+        ? [
+            '',
+            'Diagnostics:',
+            relayerDiagnostics.txHash ? `Tx: ${relayerDiagnostics.txHash}` : null,
+            relayerDiagnostics.type ? `Tx type: ${relayerDiagnostics.type}` : null,
+            typeof relayerDiagnostics.authorizationListLength === 'number'
+              ? `Authorization list entries: ${relayerDiagnostics.authorizationListLength}`
+              : null,
+            relayerDiagnostics.actualCode !== undefined
+              ? `Generated wallet code: ${relayerDiagnostics.actualCode ?? 'none'}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : ''
+
       return {
         success: false,
         error: 'relayer_error',
-        message: result.error || 'Relayer request failed',
+        message: `${result.error || 'Relayer request failed'}${diagnosticsMessage}`,
       }
     }
 
@@ -165,11 +202,6 @@ export async function generateAndEnableWallet({
     })
 
     // Step 5: Verify the delegation was applied (double-check from client side)
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(rpcUrl),
-    })
-
     const code = await publicClient.getCode({ address: newAccount.address })
     const expectedCode = `0xef0100${contractAddress.slice(2).toLowerCase()}`
 

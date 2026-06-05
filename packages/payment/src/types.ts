@@ -29,7 +29,7 @@ export interface TokenConfig {
 export interface ChainConfig {
   chainId: SupportedChainId
   networkId: NetworkId
-  usdce: TokenConfig
+  usdc: TokenConfig
   rpcUrl: string
   officialFacilitatorUrl: string | null
 }

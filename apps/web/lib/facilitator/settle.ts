@@ -3,6 +3,7 @@ import {
   createWalletClient,
   encodeFunctionData,
   http,
+  parseSignature,
   type Address,
   type Hex,
   type Account,
@@ -37,7 +38,9 @@ const USDC_TRANSFER_AUTHORIZATION_ABI = [
       { name: 'validAfter', type: 'uint256' },
       { name: 'validBefore', type: 'uint256' },
       { name: 'nonce', type: 'bytes32' },
-      { name: 'signature', type: 'bytes' },
+      { name: 'v', type: 'uint8' },
+      { name: 'r', type: 'bytes32' },
+      { name: 's', type: 'bytes32' },
     ],
     outputs: [],
   },
@@ -140,9 +143,9 @@ async function settleWithOfficialFacilitator(
 }
 
 /**
- * Settle a smart account payment directly on-chain
+ * Settle an EIP-3009 payment directly on-chain.
  */
-async function settleSmartAccountPayment(
+async function settlePaymentOnChain(
   walletClient: SettlementWalletClient,
   publicClient: SettlementPublicClient,
   header: PaymentHeader,
@@ -158,8 +161,10 @@ async function settleSmartAccountPayment(
   // Calculate fee (for logging, we'll collect it in a future iteration)
   const amount = BigInt(payload.value)
   const { netAmount, fee } = calculateNetAmount(amount, feeConfig)
+  const { r, s, yParity } = parseSignature(innerSignature)
+  const v = yParity === 1 ? 28 : 27
 
-  console.log('[Facilitator] Settling smart account payment:', {
+  console.log('[Facilitator] Settling EIP-3009 payment on-chain:', {
     from: payload.from,
     to: payload.to,
     amount: amount.toString(),
@@ -179,7 +184,9 @@ async function settleSmartAccountPayment(
       BigInt(payload.validAfter),
       BigInt(payload.validBefore),
       payload.nonce as Hex,
-      innerSignature,
+      v,
+      r,
+      s,
     ] as const
 
     // Encode calldata to calculate Ethermint floor gas
@@ -235,7 +242,7 @@ async function settleSmartAccountPayment(
       txHash: receipt.transactionHash,
     }
   } catch (error) {
-    console.error('[Facilitator] Smart account settlement failed:', error)
+    console.error('[Facilitator] On-chain payment settlement failed:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Settlement transaction failed',
@@ -255,7 +262,8 @@ export async function settlePayment(
   paymentHeaderBase64: string,
   header: PaymentHeader,
   expectedAmount: number,
-  expectedRecipient: Address
+  expectedRecipient: Address,
+  paymentRequirementsOverride?: Partial<PaymentRequirements>
 ): Promise<{ txHash: Hex } | null> {
   const chainId = parseChainId(header.network)
   const chainConfig = getChainConfig(chainId)
@@ -278,26 +286,9 @@ export async function settlePayment(
 
   let result: SettleResult
 
-  if (signatureType === 'eoa' && chainConfig.officialFacilitatorUrl) {
-    // First verify with official facilitator
-    const paymentRequirements: PaymentRequirements = {
-      scheme: 'exact',
-      network: chainConfig.name,
-      payTo: expectedRecipient,
-      asset: header.payload.asset as Address,
-      maxAmountRequired: expectedAmount.toString(),
-      maxTimeoutSeconds: 300,
-      description: 'API access payment',
-      mimeType: 'application/json',
-    }
-
-    result = await settleWithOfficialFacilitator(
-      chainConfig.officialFacilitatorUrl,
-      paymentHeaderBase64,
-      paymentRequirements
-    )
-  } else {
-    // Settle smart account payment directly
+  if (signatureType === 'eoa') {
+    // Settle standard EOA EIP-3009 payments directly. This avoids facilitator
+    // metadata mismatches and uses the signed authorization exactly as-is.
     const relayerKey = process.env.FACILITATOR_RELAYER_KEY
 
     if (!relayerKey) {
@@ -321,7 +312,7 @@ export async function settlePayment(
 
     const feeConfig = getDefaultFeeConfig()
 
-    result = await settleSmartAccountPayment(
+    result = await settlePaymentOnChain(
       walletClient,
       publicClient,
       header,
@@ -329,6 +320,27 @@ export async function settlePayment(
       chain,
       account
     )
+  } else if (chainConfig.officialFacilitatorUrl) {
+    const paymentRequirements: PaymentRequirements = {
+      scheme: 'exact',
+      network: chainConfig.name,
+      payTo: expectedRecipient,
+      asset: header.payload.asset as Address,
+      maxAmountRequired: expectedAmount.toString(),
+      maxTimeoutSeconds: 300,
+      description: 'API access payment',
+      mimeType: 'application/json',
+      ...paymentRequirementsOverride,
+    }
+
+    result = await settleWithOfficialFacilitator(
+      chainConfig.officialFacilitatorUrl,
+      paymentHeaderBase64,
+      paymentRequirements
+    )
+  } else {
+    console.error('[Facilitator] Smart account settlement requires METAMASK_X402_FACILITATOR_URL')
+    return null
   }
 
   if (!result.success || !result.txHash) {

@@ -111,7 +111,14 @@ npx hardhat test
 Deploy using Hardhat Ignition:
 
 ```shell
-npx hardhat ignition deploy ignition/modules/AgentDelegator.ts --network <network>
+npx hardhat ignition deploy ignition/modules/AgentDelegator.ts --network baseSepolia
+```
+
+After deployment, copy the address from
+`ignition/deployments/chain-84532/deployed_addresses.json` into the web app:
+
+```env
+NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS=0x...
 ```
 
 ## Contract Architecture

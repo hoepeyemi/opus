@@ -5,7 +5,7 @@
  * and sending a transaction with the authorization list.
  *
  * Usage:
- *   PRIVATE_KEY=0x... npx hardhat run scripts/enable-smart-account.ts --network cronosTestnet
+ *   PRIVATE_KEY=0x... AGENT_DELEGATOR_ADDRESS=0x... npx hardhat run scripts/enable-smart-account.ts --network baseSepolia
  *
  * Note: EIP-7702 signAuthorization requires a local account (direct private key access),
  * not a JSON-RPC account. This is why we read the private key from environment directly.
@@ -20,13 +20,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { cronosTestnet, cronos } from "viem/chains";
-
-// AgentDelegator contract address by chain
-const AGENT_DELEGATOR_ADDRESSES: Record<number, Address> = {
-  338: "0xA8734aA1db20bdc08fCf4E7C8657BF37f3c2e0b3", // Cronos Testnet
-  25: "0x42592635fF346142c47351787134C9B1a21e71EC", // Cronos Mainnet - add when deployed
-};
+import { baseSepolia } from "viem/chains";
 
 async function main() {
   // Get private key from environment
@@ -36,9 +30,16 @@ async function main() {
     console.error("Error: PRIVATE_KEY environment variable not set.");
     console.error("");
     console.error("Usage:");
-    console.error("  PRIVATE_KEY=0x... npx hardhat run scripts/enable-smart-account.ts --network cronosTestnet");
+    console.error("  PRIVATE_KEY=0x... AGENT_DELEGATOR_ADDRESS=0x... npx hardhat run scripts/enable-smart-account.ts --network baseSepolia");
     console.error("");
-    console.error("Note: This must be the same key stored in your Hardhat keystore as HACKATHON_KEY");
+    console.error("Note: This must be the same key stored in your Hardhat keystore as BASE_SEPOLIA_DEPLOYER_KEY");
+    process.exit(1);
+  }
+
+  const contractAddress = process.env.AGENT_DELEGATOR_ADDRESS as Address | undefined;
+  if (!contractAddress) {
+    console.error("Error: AGENT_DELEGATOR_ADDRESS environment variable not set.");
+    console.error("Set it to the AgentDelegator contract deployed on Base Sepolia.");
     process.exit(1);
   }
 
@@ -55,20 +56,9 @@ async function main() {
   console.log("Chain ID:", chainId);
   console.log("Account address:", account.address);
 
-  // Get the contract address for this chain
-  const contractAddress = AGENT_DELEGATOR_ADDRESSES[chainId];
-  if (!contractAddress) {
-    throw new Error(`AgentDelegator not deployed on chain ${chainId}`);
-  }
-
   // Determine chain config and RPC URL
-  const chain = chainId === 338 ? cronosTestnet : chainId === 25 ? cronos : undefined;
-  const rpcUrl =
-    chainId === 338
-      ? "https://evm-t3.cronos.org"
-      : chainId === 25
-        ? "https://evm.cronos.org"
-        : undefined;
+  const chain = chainId === baseSepolia.id ? baseSepolia : undefined;
+  const rpcUrl = chainId === baseSepolia.id ? process.env.BASE_SEPOLIA_RPC_URL : undefined;
 
   if (!chain || !rpcUrl) {
     throw new Error(`Unsupported chain ID: ${chainId}`);

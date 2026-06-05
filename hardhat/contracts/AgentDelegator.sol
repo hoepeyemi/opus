@@ -20,7 +20,7 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
     // ERC-7201 Namespaced Storage
     // ========================
 
-    /// @custom:storage-location erc7201:cronos-hackathon.agent.delegator
+    /// @custom:storage-location erc7201:opus.base-sepolia.agent.delegator
     struct DelegatorStorage {
         uint256 sessionNonce;
         mapping(bytes32 => Session) sessions;
@@ -28,9 +28,9 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
         mapping(bytes32 => mapping(address => DomainInfo)) sessionContractDomains;
     }
 
-    // keccak256(toBytes("cronos-hackathon.agent.delegator")) - 1) & ~bytes32(uint256(0xff))
+    // keccak256(toBytes("opus.base-sepolia.agent.delegator")) - 1) & ~bytes32(uint256(0xff))
     bytes32 private constant STORAGE_SLOT =
-        0xa0c1d2d7f72a881653f7765d29f368af07d2f3cfc87dd25869b0087cfa6e7900;
+        0x3c7d1ccf1d978ab990bc0e9216c60772459f2166a300953d3e9f3cf7f78d3400;
 
     function _getDelegatorStorage() private pure returns (DelegatorStorage storage $) {
         assembly {
@@ -53,8 +53,8 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
 
     /// @notice Domain info for EIP-712 signature verification
     struct DomainInfo {
-        bytes32 nameHash;     // keccak256(domain name, e.g., "Bridged USDC (Stargate)")
-        bytes32 versionHash;  // keccak256(version, e.g., "1")
+        bytes32 nameHash;     // keccak256(domain name, e.g., "USDC")
+        bytes32 versionHash;  // keccak256(version, e.g., "2")
     }
 
     /// @notice Contract approval with domain info for EIP-1271 signatures

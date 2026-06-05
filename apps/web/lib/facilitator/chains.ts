@@ -1,22 +1,14 @@
 import type { Address } from 'viem'
-import * as x402Payment from '@x402/payment'
 import type { ChainConfig, PaymentRequirements } from './types'
 import {
   CHAIN_CONFIGS as SHARED_CHAIN_CONFIGS,
   DEFAULT_CHAIN_ID,
   getNetworkFromChainId as sharedGetNetworkFromChainId,
   parseChainId as sharedParseChainId,
+  getUsdcAddress as sharedGetUsdcAddress,
   isSupportedChain,
 } from '@x402/payment'
 import { getFacilitatorUrl } from './url'
-
-const sharedGetUsdcAddress = x402Payment[
-  ['get', 'Usdc', 'e', 'Address'].join('') as keyof typeof x402Payment
-] as (chainId: number) => Address
-
-const sharedBaseSepoliaUsdc = SHARED_CHAIN_CONFIGS[84532][
-  ['usdc', 'e'].join('') as keyof typeof SHARED_CHAIN_CONFIGS[84532]
-] as { address: Address }
 
 /** Default chain ID (testnet) */
 export const defaultChainId = DEFAULT_CHAIN_ID
@@ -32,7 +24,7 @@ export const chainConfigs: Record<number, ChainConfig> = {
     chainId: 84532,
     name: 'base-sepolia',
     officialFacilitatorUrl: getFacilitatorUrl(),
-    usdcAddress: sharedBaseSepoliaUsdc.address,
+    usdcAddress: SHARED_CHAIN_CONFIGS[84532].usdc.address,
     rpcUrl: SHARED_CHAIN_CONFIGS[84532].rpcUrl,
   },
 }

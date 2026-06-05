@@ -20,7 +20,7 @@ export type {
 
 // Constants
 export {
-  USDC_E_CONFIG,
+  USDC_CONFIG,
   CHAIN_CONFIGS,
   CHAIN_TO_NETWORK,
   NETWORK_TO_CHAIN,
@@ -33,7 +33,7 @@ export {
 // EIP-712
 export {
   buildAgentDelegatorDomain,
-  buildUsdceDomain,
+  buildUsdcDomain,
   buildTokenDomain,
   computeTransferWithAuthorizationStructHash,
 } from './src/eip712/index'
@@ -64,6 +64,6 @@ export {
   getNetworkFromChainId,
   getChainFromNetwork,
   parseChainId,
-  getUsdceAddress,
-  getUsdceAddressSafe,
+  getUsdcAddress,
+  getUsdcAddressSafe,
 } from './src/chains'
