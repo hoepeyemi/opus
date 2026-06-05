@@ -16,8 +16,15 @@ export async function GET() {
     })
   } catch (error) {
     console.error('[GET /api/crypto/public-key] Error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+
     return NextResponse.json(
-      { error: 'Server encryption not configured' },
+      {
+        error: 'Server encryption not configured',
+        message,
+        setup:
+          'Run `pnpm generate-keys` in apps/web, copy SERVER_PUBLIC_KEY and SERVER_PRIVATE_KEY into apps/web/.env.local, then restart the Next.js server.',
+      },
       { status: 500 }
     )
   }
