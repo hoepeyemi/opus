@@ -13,7 +13,7 @@ import {
   verifyPayment,
   settlePayment,
   buildPaymentRequirements,
-  getUsdceAddress,
+  getUsdcAddress,
 } from '@/lib/facilitator'
 import { paymentNonceRepository } from '@/lib/repositories'
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     if (!paymentHeaderValue) {
       const paymentRequirements = buildPaymentRequirements({
         amount: WALLET_GENERATION_COST,
-        asset: getUsdceAddress(paymentChainId),
+        asset: getUsdcAddress(paymentChainId),
         recipient: paymentRecipient as Address,
         chainId: paymentChainId,
         description: 'Smart account wallet generation fee',
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
     if (!settlement) {
       console.error('[Enable7702] Payment settlement failed - aborting 7702 enablement')
       return NextResponse.json(
-        { error: 'Payment failed. Please ensure you have sufficient USDC.e balance.' },
+        { error: 'Payment failed. Please ensure you have sufficient Base Sepolia USDC balance.' },
         { status: 402 }
       )
     }

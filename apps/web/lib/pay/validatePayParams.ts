@@ -1,5 +1,5 @@
 import { payParamsSchema } from '@/lib/validations/pay'
-import { isCroDomain, isValidAddress } from '@/lib/cronosid'
+import { isAddress } from 'viem'
 
 /**
  * Payment parameters interface
@@ -31,7 +31,7 @@ export interface AmountValidationResult extends ValidationResult {
 const USDC_DECIMALS = 6
 
 /**
- * Validate recipient - must be a valid address or .cro domain format
+ * Validate recipient - must be a valid EVM address.
  *
  * @param recipient - The recipient string to validate
  * @returns Validation result with error message if invalid
@@ -39,25 +39,14 @@ const USDC_DECIMALS = 6
 export function validateRecipient(recipient: string): ValidationResult {
   const normalized = recipient.toLowerCase().trim()
 
-  // Check if it's a .cro domain
-  if (normalized.endsWith('.cro')) {
-    if (isCroDomain(normalized)) {
-      return { valid: true }
-    }
-    return {
-      valid: false,
-      error: 'Invalid .cro domain format',
-    }
-  }
-
   // Check if it's a valid EVM address
-  if (isValidAddress(normalized)) {
+  if (isAddress(normalized)) {
     return { valid: true }
   }
 
   return {
     valid: false,
-    error: 'Invalid recipient. Must be a .cro domain or valid 0x address.',
+    error: 'Invalid recipient. Must be a valid 0x address.',
   }
 }
 

@@ -6,7 +6,7 @@ import {
   verifyPayment,
   settlePayment,
   buildPaymentRequirements,
-  getUsdceAddress,
+  getUsdcAddress,
 } from '@/lib/facilitator'
 import {
   buildMetaMaskX402Requirements,
@@ -136,7 +136,7 @@ async function handleProxyRequest(
 
       const paymentRequirements = buildPaymentRequirements({
         amount: proxy.pricePerRequest,
-        asset: getUsdceAddress(chainId),
+        asset: getUsdcAddress(chainId),
         recipient: proxy.paymentAddress as Address,
         chainId,
         description: proxy.description ?? 'API access payment',

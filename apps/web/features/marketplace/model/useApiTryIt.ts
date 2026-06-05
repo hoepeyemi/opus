@@ -10,7 +10,7 @@ import {
 } from '@/lib/metamask/x402'
 import {
   EIP3009_TYPES,
-  buildUsdceDomain,
+  buildUsdcDomain,
   buildEIP3009Message,
   buildPaymentHeader,
   encodePaymentHeader,
@@ -18,7 +18,7 @@ import {
 } from '@/lib/x402/client'
 
 /**
- * Payment requirements per Cronos x402 spec
+ * Payment requirements per x402 spec.
  * Received in 402 response body
  */
 interface PaymentRequirements {
@@ -228,7 +228,7 @@ export function useApiTryIt({
 
   /**
    * Sign EIP-3009 TransferWithAuthorization with wallet
-   * Per Cronos x402 spec: https://docs.cronos.org/cronos-x402-facilitator/quick-start-for-buyers
+   * Per x402 exact payment flow, sign the payment requirements returned by the proxy.
    */
   const createWalletPaymentHeader = useCallback(async (
     requirements: PaymentRequirements,
@@ -238,7 +238,7 @@ export function useApiTryIt({
     const reqChainId = parseChainId(network)
 
     // Build EIP-712 domain using shared utility
-    const domain = buildUsdceDomain(asset, reqChainId)
+    const domain = buildUsdcDomain(asset, reqChainId)
 
     // Build EIP-3009 message using shared utility
     const message = buildEIP3009Message({

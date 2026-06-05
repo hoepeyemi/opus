@@ -387,6 +387,153 @@ const expectedColumns: Record<string, string[]> = {
 
 const appTables = Object.keys(expectedColumns)
 
+const createTableStatements = [
+  `CREATE TABLE IF NOT EXISTS "api_proxies" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+    "slug" varchar(100) UNIQUE,
+    "name" varchar(100) NOT NULL,
+    "description" text,
+    "target_url" text NOT NULL,
+    "encrypted_headers" jsonb,
+    "payment_address" varchar(42) NOT NULL,
+    "price_per_request" bigint NOT NULL,
+    "is_public" boolean DEFAULT false NOT NULL,
+    "category" varchar(50),
+    "tags" jsonb DEFAULT '[]'::jsonb,
+    "http_method" varchar(10) DEFAULT 'GET' NOT NULL,
+    "request_body_template" text,
+    "query_params_template" text,
+    "variables_schema" jsonb DEFAULT '[]'::jsonb,
+    "example_response" text,
+    "content_type" varchar(100) DEFAULT 'application/json',
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "request_logs" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "proxy_id" uuid NOT NULL REFERENCES "api_proxies"("id") ON DELETE cascade,
+    "requester_wallet" varchar(42),
+    "status" varchar(20) NOT NULL,
+    "timestamp" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "session_keys" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+    "session_id" varchar(66) NOT NULL UNIQUE,
+    "session_key_address" varchar(42) NOT NULL,
+    "encrypted_private_key" jsonb NOT NULL,
+    "scopes" jsonb DEFAULT '[]'::jsonb,
+    "on_chain_params" jsonb,
+    "allowed_targets" jsonb DEFAULT '[]'::jsonb NOT NULL,
+    "allowed_selectors" jsonb DEFAULT '[]'::jsonb,
+    "valid_after" timestamp with time zone NOT NULL,
+    "valid_until" timestamp with time zone NOT NULL,
+    "approved_contracts" jsonb DEFAULT '[]'::jsonb,
+    "oauth_client_id" varchar(100),
+    "oauth_grant_id" varchar(100),
+    "is_active" boolean DEFAULT true NOT NULL,
+    "revoked_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "oauth_clients" (
+    "id" varchar(100) PRIMARY KEY NOT NULL,
+    "secret_hash" varchar(128) NOT NULL,
+    "name" varchar(100) NOT NULL,
+    "description" text,
+    "logo_url" text,
+    "redirect_uris" jsonb NOT NULL,
+    "allowed_scopes" jsonb NOT NULL,
+    "mcp_slug" varchar(50),
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "oauth_auth_codes" (
+    "code" varchar(128) PRIMARY KEY NOT NULL,
+    "client_id" varchar(100) NOT NULL REFERENCES "oauth_clients"("id"),
+    "user_id" uuid NOT NULL REFERENCES "users"("id"),
+    "requested_scopes" jsonb NOT NULL,
+    "approved_scopes" jsonb NOT NULL,
+    "session_config" jsonb NOT NULL,
+    "code_challenge" varchar(128) NOT NULL,
+    "code_challenge_method" varchar(10) DEFAULT 'S256' NOT NULL,
+    "redirect_uri" text NOT NULL,
+    "expires_at" timestamp with time zone NOT NULL,
+    "used_at" timestamp with time zone
+  )`,
+  `CREATE TABLE IF NOT EXISTS "oauth_access_tokens" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "token_hash" varchar(128) NOT NULL UNIQUE,
+    "client_id" varchar(100) NOT NULL REFERENCES "oauth_clients"("id"),
+    "user_id" uuid NOT NULL REFERENCES "users"("id"),
+    "session_key_id" uuid NOT NULL REFERENCES "session_keys"("id"),
+    "scopes" jsonb NOT NULL,
+    "mcp_slug" varchar(50),
+    "expires_at" timestamp with time zone NOT NULL,
+    "revoked_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "mcp_servers" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL UNIQUE REFERENCES "users"("id") ON DELETE cascade,
+    "slug" varchar(50) NOT NULL UNIQUE,
+    "name" varchar(100) NOT NULL,
+    "description" text,
+    "is_public" boolean DEFAULT false NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS "mcp_server_tools" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "mcp_server_id" uuid NOT NULL REFERENCES "mcp_servers"("id") ON DELETE cascade,
+    "api_proxy_id" uuid NOT NULL REFERENCES "api_proxies"("id") ON DELETE cascade,
+    "tool_name" varchar(100),
+    "tool_description" text,
+    "short_description" varchar(100),
+    "display_order" integer DEFAULT 0 NOT NULL,
+    "is_enabled" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT "unique_mcp_server_proxy" UNIQUE("mcp_server_id", "api_proxy_id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "workflow_templates" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+    "slug" varchar(100) NOT NULL,
+    "name" varchar(100) NOT NULL,
+    "description" text,
+    "input_schema" jsonb DEFAULT '[]'::jsonb NOT NULL,
+    "workflow_definition" jsonb NOT NULL,
+    "output_schema" jsonb,
+    "is_public" boolean DEFAULT false NOT NULL,
+    "is_verified" boolean DEFAULT false NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT "unique_user_workflow_slug" UNIQUE("user_id", "slug")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "mcp_server_workflows" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "mcp_server_id" uuid NOT NULL REFERENCES "mcp_servers"("id") ON DELETE cascade,
+    "workflow_id" uuid NOT NULL REFERENCES "workflow_templates"("id") ON DELETE cascade,
+    "tool_name" varchar(100),
+    "tool_description" text,
+    "display_order" integer DEFAULT 0 NOT NULL,
+    "is_enabled" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT "unique_mcp_server_workflow" UNIQUE("mcp_server_id", "workflow_id")
+  )`,
+]
+
+const createIndexStatements = [
+  `CREATE INDEX IF NOT EXISTS "idx_oauth_auth_codes_expiry" ON "oauth_auth_codes" ("expires_at")`,
+  `CREATE INDEX IF NOT EXISTS "idx_oauth_access_tokens_session" ON "oauth_access_tokens" ("session_key_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_mcp_servers_slug" ON "mcp_servers" ("slug")`,
+  `CREATE INDEX IF NOT EXISTS "idx_mcp_server_tools_server" ON "mcp_server_tools" ("mcp_server_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_workflow_templates_user" ON "workflow_templates" ("user_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_mcp_server_workflows_server" ON "mcp_server_workflows" ("mcp_server_id")`,
+]
+
 async function main() {
   let renameCount = 0
   let defaultCount = 0
@@ -407,6 +554,9 @@ async function main() {
     console.log('Repairing database:', connectionInfo)
 
     await sql`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`
+    await repairUsersIdType()
+
+    await createMissingAppTables()
 
     for (const repair of repairs) {
       renameCount += await repairTable(repair)
@@ -429,6 +579,88 @@ async function main() {
     console.log(`Schema repair complete. Renamed ${renameCount} column(s), repaired ${defaultCount} default/backfill rule(s), relaxed ${legacyColumnCount} legacy required column(s).`)
   } finally {
     await sql.end()
+  }
+}
+
+async function createMissingAppTables() {
+  for (const statement of createTableStatements) {
+    await sql.unsafe(statement)
+  }
+
+  for (const statement of createIndexStatements) {
+    await sql.unsafe(statement)
+  }
+
+  console.log('Ensured all app tables and indexes exist.')
+}
+
+async function repairUsersIdType() {
+  if (!await hasTable('users') || !await hasColumn('users', 'id')) {
+    return
+  }
+
+  const [idColumn] = await sql<{ data_type: string; udt_name: string }[]>`
+    SELECT data_type, udt_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'users'
+      AND column_name = 'id'
+  `
+
+  if (idColumn?.udt_name === 'uuid') {
+    console.log('users.id is already uuid.')
+    return
+  }
+
+  const invalidRows = await sql<{ id: string }[]>`
+    SELECT id::text AS id
+    FROM "users"
+    WHERE id IS NOT NULL
+      AND id::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    LIMIT 5
+  `
+
+  if (invalidRows.length > 0) {
+    console.warn(`Remapping non-UUID legacy users.id value(s) before conversion: ${invalidRows.map((row) => row.id).join(', ')}`)
+  }
+
+  await sql`
+    UPDATE "users"
+    SET "id" = gen_random_uuid()::text
+    WHERE "id" IS NULL
+      OR "id"::text !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  `
+
+  await dropLegacyForeignKeysReferencingUsersId()
+
+  await sql`ALTER TABLE "users" ALTER COLUMN "id" DROP DEFAULT`
+  await sql`ALTER TABLE "users" ALTER COLUMN "id" TYPE uuid USING "id"::uuid`
+  await sql`ALTER TABLE "users" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()`
+  await sql`ALTER TABLE "users" ALTER COLUMN "id" SET NOT NULL`
+  console.log('Converted users.id to uuid.')
+}
+
+async function dropLegacyForeignKeysReferencingUsersId() {
+  const constraints = await sql<{ table_name: string; constraint_name: string }[]>`
+    SELECT
+      child.relname AS table_name,
+      constraint_info.conname AS constraint_name
+    FROM pg_constraint constraint_info
+    JOIN pg_class parent ON parent.oid = constraint_info.confrelid
+    JOIN pg_class child ON child.oid = constraint_info.conrelid
+    JOIN pg_namespace parent_namespace ON parent_namespace.oid = parent.relnamespace
+    WHERE constraint_info.contype = 'f'
+      AND parent_namespace.nspname = 'public'
+      AND parent.relname = 'users'
+  `
+
+  for (const constraint of constraints) {
+    if (appTables.includes(constraint.table_name)) {
+      continue
+    }
+
+    await sql`ALTER TABLE ${sql(constraint.table_name)} DROP CONSTRAINT ${sql(constraint.constraint_name)}`
+    console.warn(`Dropped legacy foreign key ${constraint.table_name}.${constraint.constraint_name} referencing users.id.`)
   }
 }
 

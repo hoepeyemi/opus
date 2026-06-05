@@ -37,7 +37,7 @@ export function LinkGeneratorGeneratedView({
       <p className="text-2xl font-semibold mb-4">Share the Link, Now!</p>
       <Badge variant="secondary" className="mb-10 gap-1.5 px-3 py-1">
         <Zap className="size-3.5" />
-        Gas-Free USDC.E Payment
+        Gas-Free USDC Payment
       </Badge>
 
       {/* URL Display */}

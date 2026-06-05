@@ -13,14 +13,12 @@ import { usePaymentOrchestration } from '../model'
 interface PaymentFormProps {
   /** Resolved recipient address */
   recipient: Address
-  /** Display name (truncated address or .cro domain) */
+  /** Display name, usually a truncated address */
   displayName: string
   /** Initial amount in USD */
   amountUsd: number
   /** Initial amount in smallest unit */
   amountSmallestUnit: number
-  /** Original .cro domain if recipient was resolved from one */
-  originalDomain?: string
 }
 
 export function PaymentForm({
@@ -28,7 +26,6 @@ export function PaymentForm({
   displayName,
   amountUsd,
   amountSmallestUnit: initialAmountSmallestUnit,
-  originalDomain,
 }: PaymentFormProps) {
   const { open } = useAppKit()
 
@@ -124,7 +121,7 @@ export function PaymentForm({
           Send Payment
         </CardTitle>
         <CardDescription>
-          Pay {originalDomain || 'recipient'} with USDC on Base Sepolia
+          Pay recipient with USDC on Base Sepolia
         </CardDescription>
       </CardHeader>
 
@@ -135,15 +132,7 @@ export function PaymentForm({
           <div className="p-3 rounded-lg bg-muted">
             <div className="flex items-center justify-between">
               <span className="font-medium">{displayName}</span>
-              {originalDomain && (
-                <Badge variant="secondary">.cro domain</Badge>
-              )}
             </div>
-            {originalDomain && (
-              <p className="text-xs text-muted-foreground mt-1 font-mono">
-                {recipient}
-              </p>
-            )}
           </div>
         </div>
 

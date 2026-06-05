@@ -15,7 +15,7 @@ import type {
 import { detectSignatureType } from './detect'
 import { unwrapEIP6492 } from './unwrap'
 import { getChainConfig, parseChainId } from './chains'
-import { EIP3009_TYPES, buildUsdceDomain } from '@/lib/x402/client'
+import { EIP3009_TYPES, buildUsdcDomain } from '@/lib/x402/client'
 import { paymentNonceRepository } from '@/lib/repositories'
 
 /**
@@ -56,7 +56,7 @@ export function parsePaymentHeader(headerValue: string): PaymentHeader {
  * Build EIP-712 typed data hash for EIP-3009 TransferWithAuthorization
  */
 function buildEIP3009Hash(payload: PaymentPayload, chainId: number): Hex {
-  const domain = buildUsdceDomain(payload.asset, chainId)
+  const domain = buildUsdcDomain(payload.asset, chainId)
 
   return hashTypedData({
     domain,
@@ -112,7 +112,7 @@ async function verifySmartAccountSignature(
 }
 
 /**
- * Forward verification to the official Cronos facilitator
+ * Forward verification to the configured x402 facilitator.
  */
 async function verifyWithOfficialFacilitator(
   facilitatorUrl: string,
@@ -153,7 +153,7 @@ async function verifyWithOfficialFacilitator(
 /**
  * Verify a payment signature
  *
- * - For EOA signatures: Forward to official Cronos facilitator
+ * - For EOA signatures: Forward to the configured x402 facilitator
  * - For smart account signatures: Verify locally via EIP-1271
  */
 export async function verifyPayment(

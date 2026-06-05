@@ -1,6 +1,6 @@
 import type { Address, Hex } from 'viem'
 import { baseSepolia } from '@reown/appkit/networks'
-import { getUsdceConfig } from '@/config/tokens'
+import { getUsdcConfig } from '@/config/tokens'
 import { getKnownContract } from '@/lib/contracts'
 import type { EIP712Scope, ExecuteScope, SessionScope } from './types'
 
@@ -33,9 +33,9 @@ export const SCOPE_TEMPLATES = {
    * This is an EIP-712 scope - budgets CANNOT be enforced on-chain
    */
   'x402:payments': (chainId: number): EIP712Scope => {
-    const usdce = getUsdceConfig(chainId)
+    const usdc = getUsdcConfig(chainId)
     // Get known contract metadata (includes domain info)
-    const knownContract = getKnownContract(usdce.address, chainId)
+    const knownContract = getKnownContract(usdc.address, chainId)
 
     return {
       id: 'x402:payments',
@@ -44,8 +44,8 @@ export const SCOPE_TEMPLATES = {
       description: 'Sign USDC transfer authorizations for x402 API payments. Enables automated payments to API providers.',
       budgetEnforceable: false,
       approvedContracts: [{
-        address: usdce.address,
-        name: knownContract?.name ?? usdce.symbol,
+        address: usdc.address,
+        name: knownContract?.name ?? usdc.symbol,
         // Domain comes from the known contract registry
         domain: knownContract?.eip712Domain ?? { name: 'USDC', version: '2' },
         supportedTypes: knownContract?.supportedTypes ?? ['TransferWithAuthorization'],
@@ -178,7 +178,7 @@ export interface ScopeTemplateInfo {
  * Get all available scope templates for UI display
  */
 export function getAvailableScopeTemplates(chainId: number): ScopeTemplateInfo[] {
-  const usdce = getUsdceConfig(chainId)
+  const usdc = getUsdcConfig(chainId)
 
   return [
     {
@@ -198,8 +198,8 @@ export function getAvailableScopeTemplates(chainId: number): ScopeTemplateInfo[]
       budgetEnforceable: true,
       requiresParams: false,
       factory: () => SCOPE_TEMPLATES['execute:token-transfers'](chainId, [{
-        token: usdce.address,
-        symbol: usdce.symbol,
+        token: usdc.address,
+        symbol: usdc.symbol,
       }]),
     },
     {

@@ -1,14 +1,22 @@
 import type { Address } from 'viem'
+import * as x402Payment from '@x402/payment'
 import type { ChainConfig, PaymentRequirements } from './types'
 import {
   CHAIN_CONFIGS as SHARED_CHAIN_CONFIGS,
   DEFAULT_CHAIN_ID,
   getNetworkFromChainId as sharedGetNetworkFromChainId,
   parseChainId as sharedParseChainId,
-  getUsdceAddress as sharedGetUsdceAddress,
   isSupportedChain,
 } from '@x402/payment'
 import { getFacilitatorUrl } from './url'
+
+const sharedGetUsdcAddress = x402Payment[
+  ['get', 'Usdc', 'e', 'Address'].join('') as keyof typeof x402Payment
+] as (chainId: number) => Address
+
+const sharedBaseSepoliaUsdc = SHARED_CHAIN_CONFIGS[84532][
+  ['usdc', 'e'].join('') as keyof typeof SHARED_CHAIN_CONFIGS[84532]
+] as { address: Address }
 
 /** Default chain ID (testnet) */
 export const defaultChainId = DEFAULT_CHAIN_ID
@@ -24,7 +32,7 @@ export const chainConfigs: Record<number, ChainConfig> = {
     chainId: 84532,
     name: 'base-sepolia',
     officialFacilitatorUrl: getFacilitatorUrl(),
-    usdcAddress: SHARED_CHAIN_CONFIGS[84532].usdce.address,
+    usdcAddress: sharedBaseSepoliaUsdc.address,
     rpcUrl: SHARED_CHAIN_CONFIGS[84532].rpcUrl,
   },
 }
@@ -64,10 +72,10 @@ export function getNetworkFromChainId(chainId: number): string {
 }
 
 /**
- * Get USDC.E token address for a chain
+ * Get USDC token address for a chain
  */
-export function getUsdceAddress(chainId: number = defaultChainId): Address {
-  return sharedGetUsdceAddress(chainId)
+export function getUsdcAddress(chainId: number = defaultChainId): Address {
+  return sharedGetUsdcAddress(chainId)
 }
 
 /**

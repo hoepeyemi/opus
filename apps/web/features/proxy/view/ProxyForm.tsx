@@ -479,7 +479,7 @@ export function ProxyForm() {
             <form.Field name="pricePerRequest">
               {(field) => (
                 <Field data-invalid={field.state.meta.errors.length > 0}>
-                  <FieldLabel htmlFor={field.name}>Price per Request (USDC.E)</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>Price per Request (USDC)</FieldLabel>
                   <FieldDescription>Amount charged for each API call</FieldDescription>
                   <Input
                     id={field.name}

@@ -36,7 +36,7 @@ export interface BaseScope {
 export interface ScopeTarget {
   /** Contract address */
   address: Address
-  /** Human-readable name (e.g., "USDC.e", "Uniswap Router") */
+  /** Human-readable name (e.g., "USDC", "Uniswap Router") */
   name?: string
   /** Allowed function selectors (if empty, all functions allowed) */
   selectors?: {
@@ -55,7 +55,7 @@ export interface ScopeTarget {
 export interface ApprovedSignatureContract {
   /** Contract address that will call isValidSignature */
   address: Address
-  /** Human-readable name (e.g., "USDC.e", "OpenSea Seaport") */
+  /** Human-readable name (e.g., "USDC", "OpenSea Seaport") */
   name: string
   /** EIP-712 domain info for display (helps users verify what they're signing) */
   domain: {

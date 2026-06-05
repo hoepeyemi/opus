@@ -65,7 +65,7 @@ export interface ChainConfig {
   name: string
   /** Official x402 facilitator URL (null if none exists) */
   officialFacilitatorUrl: string | null
-  /** USDC.E token address */
+  /** USDC token address */
   usdcAddress: Address
   /** RPC URL for on-chain calls */
   rpcUrl: string

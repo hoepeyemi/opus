@@ -22,17 +22,18 @@ import {
   Wallet,
   ShieldAlert,
 } from 'lucide-react'
-import { useChainId, useSignTypedData, useAccount, useReadContract } from 'wagmi'
+import { useChainId, useSignTypedData, useAccount, useReadContract, useSwitchChain } from 'wagmi'
+import { baseSepolia } from '@reown/appkit/networks'
 import { generateAndEnableWallet } from '@/lib/smartAccount'
 import { getAgentDelegatorAddress, isAgentDelegatorDeployed } from '@x402/contracts'
-import { getUsdceConfigSafe } from '@/config/tokens'
+import { getUsdcConfigSafe } from '@/config/tokens'
 import { erc20Abi, type Address, type Hex, type Hash } from 'viem'
 
-// Cost in USDC.e (6 decimals) - $0.50
+// Cost in USDC (6 decimals) - $0.50
 const WALLET_GENERATION_COST = BigInt(500000)
 import {
   EIP3009_TYPES,
-  buildUsdceDomain,
+  buildUsdcDomain,
   buildEIP3009Message,
   buildPaymentHeader,
   encodePaymentHeader,
@@ -77,30 +78,34 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
   const chainId = useChainId()
   const { address } = useAccount()
   const { signTypedDataAsync } = useSignTypedData()
-  const isSupported = isAgentDelegatorDeployed(chainId)
+  const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain()
+  const targetChainId = baseSepolia.id
+  const isWrongChain = chainId !== targetChainId
+  const isSupported = isAgentDelegatorDeployed(targetChainId)
 
-  // Get USDC.e token address for current chain
-  const usdceConfig = getUsdceConfigSafe(chainId)
-  const usdceAddress = usdceConfig?.address
+  // Always check Base Sepolia USDC, regardless of the currently selected wallet chain.
+  const usdcConfig = getUsdcConfigSafe(targetChainId)
+  const usdcAddress = usdcConfig?.address
 
-  // Check USDC.e balance using ERC20 balanceOf
-  const { data: usdceBalance, isLoading: isBalanceLoading } = useReadContract({
+  // Check USDC balance using ERC20 balanceOf
+  const { data: usdcBalance, isLoading: isBalanceLoading } = useReadContract({
     abi: erc20Abi,
-    address: usdceAddress,
+    address: usdcAddress,
+    chainId: targetChainId,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address && !!usdceAddress,
+      enabled: !!address && !!usdcAddress,
     },
   })
 
-  const hasInsufficientBalance = usdceBalance !== undefined
-    ? usdceBalance < WALLET_GENERATION_COST
+  const hasInsufficientBalance = usdcBalance !== undefined
+    ? usdcBalance < WALLET_GENERATION_COST
     : true
 
-  // Format balance for display (6 decimals for USDC.e)
-  const formattedBalance = usdceBalance !== undefined
-    ? (Number(usdceBalance) / 1_000_000).toFixed(2)
+  // Format balance for display (6 decimals for USDC)
+  const formattedBalance = usdcBalance !== undefined
+    ? (Number(usdcBalance) / 1_000_000).toFixed(2)
     : '0.00'
 
   const handleGenerate = useCallback(async () => {
@@ -111,14 +116,19 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
     setError(null)
 
     try {
-      const contractAddress = getAgentDelegatorAddress(chainId)
+      if (chainId !== targetChainId) {
+        console.log('[GenerateWallet] Switching to Base Sepolia...')
+        await switchChainAsync({ chainId: targetChainId })
+      }
+
+      const contractAddress = getAgentDelegatorAddress(targetChainId)
 
       // Step 1: Get payment requirements from the API
       console.log('[GenerateWallet] Getting payment requirements...')
       const initialResponse = await fetch('/api/relayer/enable-7702', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chainId }),
+        body: JSON.stringify({ chainId: targetChainId }),
       })
 
       if (initialResponse.status !== 402) {
@@ -144,7 +154,7 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
       // Step 2: Sign the x402 payment with user's wallet
       console.log('[GenerateWallet] Signing payment...')
       const reqChainId = parseChainId(requirements.network)
-      const domain = buildUsdceDomain(requirements.asset, reqChainId)
+      const domain = buildUsdcDomain(requirements.asset, reqChainId)
       const message = buildEIP3009Message({
         from: address,
         to: requirements.payTo,
@@ -174,7 +184,7 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
       setEnablingStep('generating')
 
       const result = await generateAndEnableWallet({
-        chainId,
+        chainId: targetChainId,
         contractAddress,
         paymentHeader,
       })
@@ -200,7 +210,7 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
       setState('error')
     }
-  }, [chainId, isSupported, address, signTypedDataAsync])
+  }, [chainId, targetChainId, isSupported, address, signTypedDataAsync, switchChainAsync])
 
   const handleCopyAddress = useCallback(async () => {
     if (!generatedWallet) return
@@ -268,24 +278,24 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
 
               <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900 p-3 space-y-2">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>Cost:</strong> $0.50 USDC.e (covers blockchain gas fees)
+                  <strong>Cost:</strong> $0.50 USDC on Base Sepolia (covers blockchain gas fees)
                 </p>
                 <p className="text-sm text-blue-600 dark:text-blue-400">
-                  Need USDC.e?{' '}
+                  Need Base Sepolia USDC?{' '}
                   <a
-                    href="https://vvs.finance/trade/swap?inputCurrency=cro&outputCurrency=0xf951eC28187D9E5Ca673Da8FE6757E6f0Be5F77C&exactAmount=0&exactField=input"
+                    href="https://portal.cdp.coinbase.com/products/faucet"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-blue-800 dark:hover:text-blue-200 font-medium"
                   >
-                    Get it here
+                    Claim test tokens
                   </a>{' '}
-                  on VVS Finance.
+                  from the Coinbase Developer Platform Faucet.
                 </p>
               </div>
 
               {/* Balance Status */}
-              {!isBalanceLoading && usdceBalance !== undefined && (
+              {!isBalanceLoading && usdcBalance !== undefined && (
                 <div
                   className={`rounded-lg border p-3 ${
                     hasInsufficientBalance
@@ -306,9 +316,21 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
                           : 'text-green-700 dark:text-green-300'
                       }`}
                     >
-                      <strong>Your Balance:</strong> {formattedBalance} USDC.e
+                      <strong>Your Balance:</strong> {formattedBalance} USDC
                       {hasInsufficientBalance && ' (insufficient)'}
                     </p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Checked on Base Sepolia
+                  </p>
+                </div>
+              )}
+
+              {isWrongChain && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 p-3">
+                  <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="size-4" />
+                    Switch to Base Sepolia to generate the wallet.
                   </div>
                 </div>
               )}
@@ -329,11 +351,15 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
               </Button>
               <Button
                 onClick={handleGenerate}
-                disabled={!isSupported || !address || hasInsufficientBalance || isBalanceLoading}
+                disabled={!isSupported || !address || hasInsufficientBalance || isBalanceLoading || isSwitchingChain}
               >
-                {hasInsufficientBalance && !isBalanceLoading
-                  ? 'Insufficient USDC.e'
-                  : 'Generate Wallet ($0.50)'}
+                {isSwitchingChain
+                  ? 'Switching Network...'
+                  : hasInsufficientBalance && !isBalanceLoading
+                  ? 'Insufficient USDC'
+                  : isWrongChain
+                    ? 'Switch to Base Sepolia & Generate'
+                    : 'Generate Wallet ($0.50)'}
               </Button>
             </DialogFooter>
           </>

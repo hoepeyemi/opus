@@ -215,7 +215,7 @@ export const sessionKeys = pgTable('session_keys', {
   // These are the only contracts this session key can sign EIP-712 messages for
   approvedContracts: jsonb('approved_contracts').$type<{
     address: string // Contract address
-    name?: string // Optional display name (e.g., "USDC.e", "Seaport")
+    name?: string // Optional display name (e.g., "USDC", "Seaport")
   }[]>().default([]),
 
   // === OAuth binding (if created via OAuth flow) ===

@@ -4,10 +4,10 @@ import { useState, useCallback, useMemo } from 'react'
 import { useSignTypedData, useConnection } from 'wagmi'
 import type { Address } from 'viem'
 import { useUser } from '@/context/user'
-import { getUsdceConfig, defaultChainId } from '@/config/tokens'
+import { getUsdcConfig, defaultChainId } from '@/config/tokens'
 import {
   EIP3009_TYPES,
-  buildUsdceDomain,
+  buildUsdcDomain,
   buildEIP3009Message,
   buildPaymentHeader,
   encodePaymentHeader,
@@ -35,7 +35,7 @@ export function usePayment(params: PaymentParams): UsePaymentReturn {
 
   // Derived values
   const currentChainId = chainId || defaultChainId
-  const usdceConfig = getUsdceConfig(currentChainId)
+  const usdcConfig = getUsdcConfig(currentChainId)
   const isAuthenticated = session?.isAuthenticated ?? false
 
   // Parse and validate amount
@@ -57,8 +57,8 @@ export function usePayment(params: PaymentParams): UsePaymentReturn {
     setTxHash(null)
 
     try {
-      // Build EIP-712 domain for USDC.E
-      const domain = buildUsdceDomain(usdceConfig.address, currentChainId)
+      // Build EIP-712 domain for USDC
+      const domain = buildUsdcDomain(usdcConfig.address, currentChainId)
 
       // Build EIP-3009 message
       const message = buildEIP3009Message({
@@ -93,7 +93,7 @@ export function usePayment(params: PaymentParams): UsePaymentReturn {
       const paymentHeader = buildPaymentHeader({
         message,
         signature,
-        asset: usdceConfig.address,
+        asset: usdcConfig.address,
         chainId: currentChainId,
       })
       const paymentHeaderBase64 = encodePaymentHeader(paymentHeader)
@@ -126,7 +126,7 @@ export function usePayment(params: PaymentParams): UsePaymentReturn {
     recipient,
     amountSmallestUnit,
     currentChainId,
-    usdceConfig,
+    usdcConfig,
     signTypedData,
   ])
 

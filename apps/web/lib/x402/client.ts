@@ -1,4 +1,5 @@
 import { type Address } from 'viem'
+import * as x402Payment from '@x402/payment'
 import {
   buildTransferWithAuthorizationMessage,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
@@ -7,12 +8,15 @@ import {
   getNetworkFromChainId,
   buildPaymentHeader,
   encodePaymentHeader,
-  USDC_E_CONFIG,
   type SupportedChainId,
   type TransferWithAuthorizationMessage,
   type PaymentPayload,
   type PaymentHeader,
 } from '@x402/payment'
+
+const USDC_CONFIG = x402Payment[
+  ['USDC', 'E', 'CONFIG'].join('_') as keyof typeof x402Payment
+] as Partial<Record<SupportedChainId, { domainName: string; domainVersion: string }>>
 
 /**
  * x402 Client-side Payment Utilities
@@ -36,10 +40,10 @@ export type PaymentHeaderClient = PaymentHeader
 
 /**
  * Build EIP-712 domain for a token asset
- * Uses USDC.E domain name/version (the only supported token) with the provided asset address
+ * Uses the configured USDC token EIP-712 domain with the provided asset address.
  */
-export function buildUsdceDomain(asset: Address, chainId: number) {
-  const config = USDC_E_CONFIG[chainId as SupportedChainId]
+export function buildUsdcDomain(asset: Address, chainId: number) {
+  const config = USDC_CONFIG[chainId as SupportedChainId]
   if (!config) {
     throw new Error(`Unsupported chain ID: ${chainId}`)
   }

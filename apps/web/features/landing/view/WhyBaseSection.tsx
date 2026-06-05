@@ -12,7 +12,7 @@ const badges = [
   'Session Keys',
 ]
 
-export function WhyCronosSection() {
+export function WhyBaseSection() {
   return (
     <section className="py-20 lg:py-28">
       <div className="container">
@@ -47,7 +47,7 @@ export function WhyCronosSection() {
                 </div>
                 <CardTitle className="text-xl">x402 by Default</CardTitle>
                 <CardDescription className="text-base leading-relaxed">
-                  x402 enables APIs and workflows to become programmable, usage-based economic primitives — a perfect fit for autonomous agents and on-chain settlement.
+                  x402 enables APIs and workflows to become programmable, usage-based economic primitives - a perfect fit for autonomous agents and on-chain settlement.
                 </CardDescription>
               </CardHeader>
             </Card>

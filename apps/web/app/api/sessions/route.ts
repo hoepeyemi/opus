@@ -102,7 +102,7 @@ export const POST = withAuth(async (user, request) => {
       approvedContracts: approvedContracts.map((c: { address: string; name?: string }) => ({
         address: c.address.toLowerCase(),
         name: c.name || 'Unknown',
-        domain: { name: 'Bridged USDC (Stargate)', version: '1' },
+        domain: { name: 'USDC', version: '2' },
       })),
     }]
     finalOnChainParams = {

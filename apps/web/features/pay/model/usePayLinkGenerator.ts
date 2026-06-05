@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useConnection } from 'wagmi'
-import { reverseLookupCroDomain, isValidAddress } from '@/lib/cronosid'
+import { isAddress } from 'viem'
 import type { Address } from 'viem'
 
 export type GeneratorState = 'input' | 'generated'
@@ -17,8 +17,6 @@ export interface UsePayLinkGeneratorReturn {
   isTransitioning: boolean
   recipient: string
   amount: string
-  croName: string | null
-  isLookingUp: boolean
   copied: boolean
   baseHost: string
 
@@ -38,7 +36,6 @@ export interface UsePayLinkGeneratorReturn {
   shareOnX: () => void
   openLink: () => void
   useAddress: () => void
-  useCroName: () => void
 }
 
 export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
@@ -48,8 +45,6 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('1.50')
-  const [croName, setCroName] = useState<string | null>(null)
-  const [isLookingUp, setIsLookingUp] = useState(false)
   const [copied, setCopied] = useState(false)
   const [baseHost, setBaseHost] = useState('')
   const [baseOrigin, setBaseOrigin] = useState('')
@@ -60,32 +55,11 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
     setBaseOrigin(window.location.origin)
   }, [])
 
-  // Auto-lookup .cro name when wallet connects
+  // Auto-fill recipient with the connected wallet address.
   useEffect(() => {
-    async function lookupCroName() {
-      if (!address) {
-        setCroName(null)
-        return
-      }
-
-      setIsLookingUp(true)
-      try {
-        const name = await reverseLookupCroDomain(address as Address)
-        setCroName(name)
-        if (name) {
-          setRecipient(name)
-        } else {
-          setRecipient(address)
-        }
-      } catch (error) {
-        console.error('[PayLink] Failed to lookup .cro name:', error)
-        setRecipient(address)
-      } finally {
-        setIsLookingUp(false)
-      }
+    if (address) {
+      setRecipient(address)
     }
-
-    lookupCroName()
   }, [address])
 
   // Derived values
@@ -93,10 +67,7 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
     ? `${baseOrigin}/pay/${encodeURIComponent(recipient)}/${encodeURIComponent(amount)}`
     : ''
 
-  const isValidRecipient = recipient.length > 0 && (
-    isValidAddress(recipient) ||
-    /^[a-z0-9][a-z0-9-]*[a-z0-9]\.cro$|^[a-z0-9]\.cro$/i.test(recipient)
-  )
+  const isValidRecipient = recipient.length > 0 && isAddress(recipient)
 
   const parsedAmount = parseFloat(amount)
   const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0 && parsedAmount <= 1_000_000
@@ -104,7 +75,7 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
   const canGenerate = isValidRecipient && isValidAmount
 
   const displayRecipient = recipient
-    ? isValidAddress(recipient)
+    ? isAddress(recipient)
       ? `${recipient.slice(0, 6)}...${recipient.slice(-4)}`
       : recipient
     : ''
@@ -158,12 +129,6 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
     }
   }, [address])
 
-  const useCroName = useCallback(() => {
-    if (croName) {
-      setRecipient(croName)
-    }
-  }, [croName])
-
   // Memoized truncated address
   const truncatedAddress = useMemo(() => {
     if (!address) return ''
@@ -180,8 +145,6 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
     isTransitioning,
     recipient,
     amount,
-    croName,
-    isLookingUp,
     copied,
     baseHost,
 
@@ -201,6 +164,5 @@ export function usePayLinkGenerator(): UsePayLinkGeneratorReturn {
     shareOnX,
     openLink,
     useAddress,
-    useCroName,
   }
 }

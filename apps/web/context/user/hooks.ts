@@ -27,7 +27,7 @@ export function useUserBalance() {
 
     return {
       native: formatUnits(balance.native, tokenConfig.native.decimals),
-      usdce: formatUnits(balance.usdce, tokenConfig.usdce.decimals),
+      usdc: formatUnits(balance.usdc, tokenConfig.usdc.decimals),
     }
   }, [balance, session?.chainId])
 

@@ -14,8 +14,6 @@ interface LinkGeneratorInputViewProps {
   // Form state
   recipient: string
   amount: string
-  croName: string | null
-  isLookingUp: boolean
   baseHost: string
 
   // Validation
@@ -28,7 +26,6 @@ interface LinkGeneratorInputViewProps {
   onAmountChange: (value: string) => void
   onGenerate: () => void
   onUseAddress: () => void
-  onUseCroName: () => void
 }
 
 export function LinkGeneratorInputView({
@@ -37,8 +34,6 @@ export function LinkGeneratorInputView({
   onOpenWallet,
   recipient,
   amount,
-  croName,
-  isLookingUp,
   baseHost,
   isValidRecipient,
   isValidAmount,
@@ -47,7 +42,6 @@ export function LinkGeneratorInputView({
   onAmountChange,
   onGenerate,
   onUseAddress,
-  onUseCroName,
 }: LinkGeneratorInputViewProps) {
   return (
     <>
@@ -80,10 +74,9 @@ export function LinkGeneratorInputView({
           {/* Recipient Input */}
           <Input
             type="text"
-            placeholder="wallet.cro"
+            placeholder="0x..."
             value={recipient}
             onChange={(e) => onRecipientChange(e.target.value)}
-            disabled={isLookingUp}
             className={cn(
               "border-0 bg-transparent text-lg font-medium text-primary focus-visible:ring-0 focus-visible:ring-offset-0 px-2",
               "placeholder:text-muted-foreground/50 min-w-[120px] max-w-[200px]"
@@ -121,14 +114,6 @@ export function LinkGeneratorInputView({
         {address ? (
           <div className="flex items-center justify-center gap-4 mt-4 text-sm text-muted-foreground">
             <span className="font-mono">{truncatedAddress}</span>
-            {croName && recipient !== croName && (
-              <button
-                onClick={onUseCroName}
-                className="underline hover:text-foreground transition-colors"
-              >
-                Use {croName}
-              </button>
-            )}
             {recipient !== address && (
               <button
                 onClick={onUseAddress}
@@ -148,7 +133,7 @@ export function LinkGeneratorInputView({
           <div className="flex items-center justify-center gap-2 mt-4">
             <Button variant="ghost" size="sm" onClick={onOpenWallet} className="gap-2">
               <Wallet className="size-4" />
-              Connect Wallet to auto-fill your .cro name
+              Connect Wallet to auto-fill your address
             </Button>
           </div>
         )}
@@ -156,17 +141,12 @@ export function LinkGeneratorInputView({
         {/* Validation Messages */}
         {recipient && !isValidRecipient && (
           <p className="text-center text-sm text-destructive mt-2">
-            Enter a valid wallet address (0x...) or .cro domain
+            Enter a valid wallet address (0x...)
           </p>
         )}
         {amount && !isValidAmount && (
           <p className="text-center text-sm text-destructive mt-2">
             Amount must be between $0.01 and $1,000,000
-          </p>
-        )}
-        {isLookingUp && (
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            Looking up .cro name...
           </p>
         )}
       </div>

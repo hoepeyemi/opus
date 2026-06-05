@@ -19,8 +19,6 @@ export function LinkGeneratorView() {
     isTransitioning,
     recipient,
     amount,
-    croName,
-    isLookingUp,
     copied,
     baseHost,
 
@@ -39,7 +37,6 @@ export function LinkGeneratorView() {
     shareOnX,
     openLink,
     useAddress,
-    useCroName,
   } = usePayLinkGenerator()
 
   const handleOpenWallet = () => open()
@@ -59,8 +56,6 @@ export function LinkGeneratorView() {
             onOpenWallet={handleOpenWallet}
             recipient={recipient}
             amount={amount}
-            croName={croName}
-            isLookingUp={isLookingUp}
             baseHost={baseHost}
             isValidRecipient={isValidRecipient}
             isValidAmount={isValidAmount}
@@ -69,7 +64,6 @@ export function LinkGeneratorView() {
             onAmountChange={setAmount}
             onGenerate={generate}
             onUseAddress={useAddress}
-            onUseCroName={useCroName}
           />
         ) : (
           <LinkGeneratorGeneratedView

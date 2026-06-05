@@ -33,7 +33,7 @@ export function StatsCards({ totals }: StatsCardsProps) {
       title: 'Total Earnings',
       value: formatEarnings(totals.totalEarnings),
       icon: DollarSign,
-      description: 'USDC.E earned',
+      description: 'USDC earned',
     },
   ]
 

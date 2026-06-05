@@ -58,7 +58,6 @@ export default async function PayPage({ params }: PageProps) {
         displayName={resolved.displayName}
         amountUsd={amountUsd}
         amountSmallestUnit={amountSmallestUnit}
-        originalDomain={resolved.domainName}
       />
     </PayPageWrapper>
   )

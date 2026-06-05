@@ -8,7 +8,7 @@ export interface TokenConfig {
 }
 
 export interface ChainTokens {
-  usdce: TokenConfig
+  usdc: TokenConfig
   native: {
     symbol: string
     decimals: number
@@ -18,7 +18,7 @@ export interface ChainTokens {
 export const tokens: Record<number, ChainTokens> = {
   // Base Sepolia
   [baseSepolia.id]: {
-    usdce: {
+    usdc: {
       address: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
       symbol: 'USDC',
       decimals: 6,
@@ -47,12 +47,12 @@ export function getTokensSafe(chainId: number): ChainTokens | null {
   return tokens[chainId] ?? null
 }
 
-export function getUsdceConfig(chainId: number): TokenConfig {
-  return getTokens(chainId).usdce
+export function getUsdcConfig(chainId: number): TokenConfig {
+  return getTokens(chainId).usdc
 }
 
-export function getUsdceConfigSafe(chainId: number): TokenConfig | null {
-  return tokens[chainId]?.usdce ?? null
+export function getUsdcConfigSafe(chainId: number): TokenConfig | null {
+  return tokens[chainId]?.usdc ?? null
 }
 
 export function getNativeConfig(chainId: number): ChainTokens['native'] {

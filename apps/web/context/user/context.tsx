@@ -5,7 +5,7 @@ import { useConnection, useBalance, useDisconnect, useReadContract } from 'wagmi
 import { erc20Abi, type Address } from 'viem'
 import type { UserContextValue } from './types'
 import type { UserBalance, UserSession } from '@/types'
-import { getUsdceConfigSafe } from '@/config/tokens'
+import { getUsdcConfigSafe } from '@/config/tokens'
 import { SESSION_CREATED_EVENT, SESSION_DESTROYED_EVENT } from '@/context'
 
 const UserContext = createContext<UserContextValue | null>(null)
@@ -68,10 +68,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, [checkServerSession])
 
-  // Get USDC.E address for current chain (returns null for unsupported chains)
-  const usdceAddress = chainId ? getUsdceConfigSafe(chainId)?.address : undefined
+  // Get USDC address for current chain (returns null for unsupported chains)
+  const usdcAddress = chainId ? getUsdcConfigSafe(chainId)?.address : undefined
 
-  // Native balance (CRO)
+  // Native balance (ETH on Base Sepolia)
   const {
     data: nativeBalanceData,
     isLoading: isNativeBalanceLoading,
@@ -81,17 +81,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     query: { enabled: !!address },
   })
 
-  // USDC.E balance using ERC20 balanceOf
+  // USDC balance using ERC20 balanceOf
   const {
-    data: usdceBalanceData,
-    isLoading: isUsdceBalanceLoading,
-    refetch: refetchUsdceBalance,
+    data: usdcBalanceData,
+    isLoading: isUsdcBalanceLoading,
+    refetch: refetchUsdcBalance,
   } = useReadContract({
     abi: erc20Abi,
-    address: usdceAddress,
+    address: usdcAddress,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    query: { enabled: !!address && !!usdceAddress },
+    query: { enabled: !!address && !!usdcAddress },
   })
 
   // Build session object - only authenticated if BOTH wallet connected AND server session exists
@@ -109,9 +109,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (!nativeBalanceData) return null
     return {
       native: nativeBalanceData.value,
-      usdce: usdceBalanceData ?? BigInt(0),
+      usdc: usdcBalanceData ?? BigInt(0),
     }
-  }, [nativeBalanceData, usdceBalanceData])
+  }, [nativeBalanceData, usdcBalanceData])
 
   // Operations
   const signOut = useCallback(async () => {
@@ -119,15 +119,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [disconnect])
 
   const refreshBalance = useCallback(async () => {
-    await Promise.all([refetchNativeBalance(), refetchUsdceBalance()])
-  }, [refetchNativeBalance, refetchUsdceBalance])
+    await Promise.all([refetchNativeBalance(), refetchUsdcBalance()])
+  }, [refetchNativeBalance, refetchUsdcBalance])
 
   const value: UserContextValue = useMemo(
     () => ({
       session,
       balance,
       isLoading: isConnecting || isReconnecting || isCheckingSession,
-      isBalanceLoading: isNativeBalanceLoading || isUsdceBalanceLoading,
+      isBalanceLoading: isNativeBalanceLoading || isUsdcBalanceLoading,
       error: null,
       signOut,
       refreshBalance,
@@ -140,7 +140,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       isReconnecting,
       isCheckingSession,
       isNativeBalanceLoading,
-      isUsdceBalanceLoading,
+      isUsdcBalanceLoading,
       signOut,
       refreshBalance,
       checkServerSession,

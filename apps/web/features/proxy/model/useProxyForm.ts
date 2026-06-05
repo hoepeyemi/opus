@@ -30,7 +30,7 @@ export function useProxyForm(options: UseProxyFormOptions = {}) {
       onChange: proxyFormSchema,
     },
     onSubmit: async ({ value }) => {
-      // Convert price to smallest unit (6 decimals for USDC.E)
+      // Convert price to smallest unit (6 decimals for USDC)
       const priceInSmallestUnit = Math.round(parseFloat(value.pricePerRequest) * 1_000_000)
 
       const input: ProxyInput = {

@@ -11,12 +11,15 @@ import {
   LocalStorage,
   type SIWXSession,
   type SIWXStorage,
+  type SIWXMessage,
 } from '@reown/appkit-siwx'
 
 
 import { baseSepolia } from '@reown/appkit/networks'
 import { networks, projectId, wagmiAdapter } from '@/config'
 import { UserProvider } from './user'
+
+const BASE_SEPOLIA_CAIP_CHAIN_ID = 'eip155:84532'
 
 // App metadata
 const metadata = {
@@ -74,6 +77,15 @@ let lastNonce: string | null = null
 export const SESSION_CREATED_EVENT = 'x402:session:created'
 export const SESSION_DESTROYED_EVENT = 'x402:session:destroyed'
 
+class BaseSepoliaMessenger extends InformalMessenger {
+  override createMessage(input: SIWXMessage.Input): Promise<SIWXMessage> {
+    return super.createMessage({
+      ...input,
+      chainId: BASE_SEPOLIA_CAIP_CHAIN_ID,
+    })
+  }
+}
+
 /**
  * Custom storage that wraps LocalStorage and syncs with server session.
  * When a session is added, it creates a server session and dispatches an event.
@@ -87,6 +99,10 @@ class ServerSyncStorage implements SIWXStorage {
   }
 
   async add(session: SIWXSession): Promise<void> {
+    if (session.data.chainId !== BASE_SEPOLIA_CAIP_CHAIN_ID) {
+      return
+    }
+
     // Store locally first
     await this.localStorage.add(session)
 
@@ -103,11 +119,19 @@ class ServerSyncStorage implements SIWXStorage {
   }
 
   get(...args: Parameters<LocalStorage['get']>): ReturnType<LocalStorage['get']> {
+    const [chainId] = args
+    if (chainId !== BASE_SEPOLIA_CAIP_CHAIN_ID) {
+      return Promise.resolve([]) as ReturnType<LocalStorage['get']>
+    }
+
     return this.localStorage.get(...args)
   }
 
   set(...args: Parameters<LocalStorage['set']>): ReturnType<LocalStorage['set']> {
-    return this.localStorage.set(...args)
+    const [sessions] = args
+    return this.localStorage.set(
+      sessions.filter((session) => session.data.chainId === BASE_SEPOLIA_CAIP_CHAIN_ID)
+    )
   }
 
   async delete(...args: Parameters<LocalStorage['delete']>): Promise<void> {
@@ -126,7 +150,7 @@ class ServerSyncStorage implements SIWXStorage {
 
 // SIWX configuration for multichain auth
 const siwx = new DefaultSIWX({
-  messenger: new InformalMessenger({
+  messenger: new BaseSepoliaMessenger({
     domain: typeof window !== 'undefined' ? window.location.host : 'localhost:3000',
     uri: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
     getNonce: async () => {

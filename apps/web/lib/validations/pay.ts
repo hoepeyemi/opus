@@ -6,26 +6,14 @@ import { z } from 'zod'
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
 /**
- * .cro domain regex pattern
- * Valid: schwiz.cro, my-domain.cro, a.cro
- * Invalid: .cro, -domain.cro, domain-.cro
- */
-const CRO_DOMAIN_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]\.cro$|^[a-z0-9]\.cro$/i
-
-/**
- * Validates recipient parameter - either .cro domain or 0x address
+ * Validates recipient parameter - must be a 0x EVM address
  */
 export const recipientSchema = z.string().refine(
   (value) => {
     const normalized = value.toLowerCase().trim()
-    // Check if it's a .cro domain
-    if (normalized.endsWith('.cro')) {
-      return CRO_DOMAIN_REGEX.test(normalized)
-    }
-    // Check if it's a valid EVM address
     return EVM_ADDRESS_REGEX.test(normalized)
   },
-  { message: 'Invalid recipient. Must be a .cro domain or valid 0x address.' }
+  { message: 'Invalid recipient. Must be a valid 0x address.' }
 )
 
 /**

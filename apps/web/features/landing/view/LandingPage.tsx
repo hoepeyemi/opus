@@ -2,7 +2,7 @@ import { HeroSection } from './HeroSection'
 import { ProblemSection } from './ProblemSection'
 import { SolutionSection } from './SolutionSection'
 import { HowItWorksSection } from './HowItWorksSection'
-import { WhyCronosSection } from './WhyCronosSection'
+import { WhyBaseSection } from './WhyBaseSection'
 import { AudienceSection } from './AudienceSection'
 import { CtaSection } from './CtaSection'
 import { Footer } from './Footer'
@@ -14,7 +14,7 @@ export function LandingPage() {
       <ProblemSection />
       <SolutionSection />
       <HowItWorksSection />
-      <WhyCronosSection />
+      <WhyBaseSection />
       <AudienceSection />
       <CtaSection />
       <Footer />

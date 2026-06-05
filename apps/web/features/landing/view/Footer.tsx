@@ -6,7 +6,6 @@ const footerLinks = [
   { label: 'GitHub', href: 'https://github.com/nschwermann/agent_fabric' },
   { label: 'Docs', href: 'https://github.com/nschwermann/agent_fabric' },
   { label: 'Demo', href: '/explore' },
-  { label: 'Hackathon Submission', href: 'https://dorahacks.io/hackathon/cronos-x402/buidl' },
 ]
 
 export function Footer() {

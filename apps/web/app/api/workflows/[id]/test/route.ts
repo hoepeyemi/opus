@@ -322,7 +322,7 @@ function runDryTest(
     input: inputs,
     steps: {} as Record<string, { output: unknown }>,
     wallet,
-    chainId: 338, // Cronos Testnet
+    chainId: 84532, // Base Sepolia
   }
 
   const stepResults: StepResult[] = []

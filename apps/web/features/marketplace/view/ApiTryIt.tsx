@@ -161,7 +161,7 @@ export function ApiTryIt({
             ? ' Payment will be signed automatically with your session key.'
             : useMetaMaskX402
               ? ' Payment will use a MetaMask ERC-7710 delegation when the endpoint supports it.'
-            : ` You'll need to sign a payment of ${formatPrice(pricePerRequest)} USDC.E.`}
+            : ` You'll need to sign a payment of ${formatPrice(pricePerRequest)} USDC on Base Sepolia.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

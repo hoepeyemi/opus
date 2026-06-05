@@ -25,7 +25,7 @@ import { paymentNonceRepository } from '@/lib/repositories'
 /**
  * EIP-3009 ABI for transferWithAuthorization
  */
-const USDC_EIP3009_ABI = [
+const USDC_TRANSFER_AUTHORIZATION_ABI = [
   {
     name: 'transferWithAuthorization',
     type: 'function',
@@ -44,7 +44,7 @@ const USDC_EIP3009_ABI = [
 ] as const
 
 /**
- * Calculate the Ethermint/Cronos floor gas based on calldata size.
+ * Calculate a conservative calldata-based gas floor.
  * Ethermint enforces a minimum gas based on transaction data (EIP-2028):
  * - 4 gas per zero byte
  * - 16 gas per non-zero byte
@@ -82,7 +82,7 @@ type SettlementWalletClient = Pick<
 >
 
 /**
- * Forward settlement to the official Cronos facilitator
+ * Forward settlement to the configured x402 facilitator.
  */
 async function settleWithOfficialFacilitator(
   facilitatorUrl: string,
@@ -184,7 +184,7 @@ async function settleSmartAccountPayment(
 
     // Encode calldata to calculate Ethermint floor gas
     const calldata = encodeFunctionData({
-      abi: USDC_EIP3009_ABI,
+      abi: USDC_TRANSFER_AUTHORIZATION_ABI,
       functionName: 'transferWithAuthorization',
       args,
     })
@@ -195,7 +195,7 @@ async function settleSmartAccountPayment(
     // Get EVM execution gas estimate
     const estimatedGas = await publicClient.estimateContractGas({
       address: payload.asset as Address,
-      abi: USDC_EIP3009_ABI,
+      abi: USDC_TRANSFER_AUTHORIZATION_ABI,
       functionName: 'transferWithAuthorization',
       args,
       account: account.address,
@@ -214,7 +214,7 @@ async function settleSmartAccountPayment(
       chain,
       account,
       address: payload.asset as Address,
-      abi: USDC_EIP3009_ABI,
+      abi: USDC_TRANSFER_AUTHORIZATION_ABI,
       functionName: 'transferWithAuthorization',
       args,
       gas: gasLimit,
@@ -246,7 +246,7 @@ async function settleSmartAccountPayment(
 /**
  * Settle a payment
  *
- * - For EOA signatures: Forward to official Cronos facilitator
+ * - For EOA signatures: Forward to the configured x402 facilitator
  * - For smart account signatures: Execute transferWithAuthorization directly
  *
  * Should only be called AFTER target API returns success

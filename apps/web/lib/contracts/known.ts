@@ -59,8 +59,8 @@ export function getKnownContractsByCategory(
  * Returns USDC for the given chain
  */
 export function getDefaultApprovedContracts(chainId: number): KnownContract[] {
-  const usdce = getKnownContract(chainId, 'usdc')
-  return usdce ? [usdce] : []
+  const usdc = getKnownContract(chainId, 'usdc')
+  return usdc ? [usdc] : []
 }
 
 /**

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 
-type ErrorType = 'invalid_format' | 'domain_not_found' | 'invalid_address'
+type ErrorType = 'invalid_format' | 'invalid_address'
 
 interface PayErrorClientProps {
   errorType: ErrorType
@@ -19,15 +19,11 @@ interface PayErrorClientProps {
 const ERROR_MESSAGES: Record<ErrorType, { title: string; description: string }> = {
   invalid_format: {
     title: 'Invalid Payment Link',
-    description: 'The payment link format is invalid. Please check the recipient address or .cro domain and the amount.',
-  },
-  domain_not_found: {
-    title: 'Domain Not Found',
-    description: 'The .cro domain could not be resolved. It may not exist or may not have a wallet address configured.',
+    description: 'The payment link format is invalid. Please check the recipient address and the amount.',
   },
   invalid_address: {
     title: 'Invalid Address',
-    description: 'The recipient address is not a valid Ethereum/Cronos address. It should start with 0x followed by 40 hexadecimal characters.',
+    description: 'The recipient address is not a valid EVM address. It should start with 0x followed by 40 hexadecimal characters.',
   },
 }
 
@@ -67,21 +63,16 @@ export function PayErrorClient({ errorType, recipient, amount }: PayErrorClientP
         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
           <p className="text-sm text-muted-foreground">Attempted recipient:</p>
           <code className="block text-sm font-mono break-all">{recipient}</code>
-          {errorType === 'domain_not_found' && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Make sure the .cro domain is registered on Cronos ID and has a wallet address configured.
-            </p>
-          )}
         </div>
 
         {/* Correction form */}
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="recipient">Recipient (address or .cro domain)</Label>
+            <Label htmlFor="recipient">Recipient address</Label>
             <Input
               id="recipient"
               type="text"
-              placeholder="0x... or name.cro"
+              placeholder="0x..."
               value={newRecipient}
               onChange={(e) => setNewRecipient(e.target.value)}
             />

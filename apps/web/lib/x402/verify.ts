@@ -1,17 +1,17 @@
 import { paymentNonceRepository } from '@/lib/repositories'
-import { getUsdceConfig, defaultChainId } from '@/config/tokens'
+import { getUsdcConfig, defaultChainId } from '@/config/tokens'
 import { type Address } from 'viem'
 import { getFacilitatorUrl } from '@/lib/facilitator/url'
 
 /**
  * x402 Payment Verification Service
  *
- * Handles verification of x402 payments by delegating to the Cronos x402 facilitator.
+ * Handles verification of x402 payments by delegating to the configured x402 facilitator.
  * Manages payment nonces to prevent replay attacks.
  */
 
 /**
- * Payment payload structure per Cronos x402 spec
+ * Payment payload structure per x402 spec.
  */
 export interface PaymentPayload {
   from: string
@@ -26,7 +26,7 @@ export interface PaymentPayload {
 
 /**
  * Full payment header structure (base64-decoded)
- * Per Cronos x402 spec
+ * Per x402 spec.
  */
 export interface PaymentHeader {
   x402Version: number
@@ -47,12 +47,10 @@ export interface PaymentDetails {
 
 /**
  * Parse chain ID from network string
- * Supports both formats: "cronos-testnet" / "cronos-mainnet" and "eip155:338" / "eip155:25"
+ * Supports both "base-sepolia" and CAIP-2 format such as "eip155:84532".
  */
 function parseChainId(network: string): number {
-  // Handle Cronos network names
-  if (network === 'cronos-testnet') return 338
-  if (network === 'cronos-mainnet') return 25
+  if (network === 'base-sepolia') return 84532
 
   // Handle CAIP-2 format (eip155:chainId)
   const parts = network.split(':')
@@ -91,7 +89,7 @@ export function parsePaymentHeader(headerValue: string): PaymentHeader {
 }
 
 /**
- * Verify payment with the Cronos x402 facilitator.
+ * Verify payment with the configured x402 facilitator.
  * This validates the signature without executing on-chain.
  */
 export async function verifyPaymentWithFacilitator(
@@ -107,7 +105,7 @@ export async function verifyPaymentWithFacilitator(
   }
 
   const chainId = parseChainId(header.network)
-  const network = chainId === 25 ? 'cronos-mainnet' : 'cronos-testnet'
+  const network = chainId === 84532 ? 'base-sepolia' : `eip155:${chainId}`
 
   const verifyRequest = {
     x402Version: 1,
@@ -146,7 +144,7 @@ export async function verifyPaymentWithFacilitator(
 }
 
 /**
- * Settle payment with the Cronos x402 facilitator.
+ * Settle payment with the configured x402 facilitator.
  * This actually executes the token transfer on-chain.
  * Should only be called AFTER the target API returns a successful response.
  */
@@ -163,7 +161,7 @@ export async function settlePayment(
   }
 
   const chainId = parseChainId(header.network)
-  const network = chainId === 25 ? 'cronos-mainnet' : 'cronos-testnet'
+  const network = chainId === 84532 ? 'base-sepolia' : `eip155:${chainId}`
 
   const settlementRequest = {
     x402Version: 1,
@@ -309,10 +307,10 @@ export interface PaymentRequirements {
 
 /**
  * Build the x402 payment requirements for 402 response body.
- * Per Cronos x402 spec, these go in the response body, not headers.
+ * Per x402 spec, these go in the response body, not headers.
  */
 export function buildPaymentRequirements(details: PaymentDetails): PaymentRequirements {
-  const network = details.chainId === 25 ? 'cronos-mainnet' : 'cronos-testnet'
+  const network = details.chainId === 84532 ? 'base-sepolia' : `eip155:${details.chainId}`
 
   return {
     scheme: 'exact',
@@ -327,10 +325,10 @@ export function buildPaymentRequirements(details: PaymentDetails): PaymentRequir
 }
 
 /**
- * Get the USDC.E token address for the chain.
+ * Get the USDC token address for the chain.
  */
-export function getUsdceAddress(chainId: number = defaultChainId): string {
-  return getUsdceConfig(chainId).address
+export function getUsdcAddress(chainId: number = defaultChainId): string {
+  return getUsdcConfig(chainId).address
 }
 
 /**

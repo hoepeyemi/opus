@@ -5,7 +5,7 @@ import { parsePaymentHeader, settlePayment } from '@/lib/x402'
  * POST /api/pay/settle - Submit payment for settlement via x402 facilitator
  *
  * This endpoint receives a signed EIP-3009 payment authorization and
- * submits it to the Cronos x402 facilitator for on-chain settlement.
+ * submits it to the configured x402 facilitator for Base Sepolia settlement.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (!result) {
       return NextResponse.json(
-        { error: 'Payment settlement failed. Please check your USDC.E balance and try again.' },
+        { error: 'Payment settlement failed. Please check your Base Sepolia USDC balance and try again.' },
         { status: 500 }
       )
     }

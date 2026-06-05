@@ -1,10 +1,10 @@
 /**
  * Custom x402 Facilitator
  *
- * This module provides a wrapper around the official Cronos x402 facilitator
+ * This module provides a wrapper around the configured x402 facilitator
  * that adds support for smart account signatures (EIP-1271).
  *
- * For EOA signatures (65 bytes): Forwards to official Cronos facilitator
+ * For EOA signatures (65 bytes): Forwards to the configured x402 facilitator
  * For smart account signatures: Verifies via EIP-1271 and settles directly
  *
  * Features:
@@ -31,7 +31,7 @@ export {
   getNetworkFromChainId,
   chainConfigs,
   defaultChainId,
-  getUsdceAddress,
+  getUsdcAddress,
   buildPaymentRequirements,
 } from './chains'
 export type { PaymentDetails } from './chains'
