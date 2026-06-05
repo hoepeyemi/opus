@@ -8,7 +8,7 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
-import { getAgentDelegatorAddress } from '@x402/contracts'
+import { getAgentDelegatorAddress, isAgentDelegatorConfigured } from '@/lib/smartAccount/agentDelegator'
 import {
   verifyPayment,
   settlePayment,
@@ -137,6 +137,16 @@ export async function POST(request: NextRequest) {
 
     // Determine chain from body or default to Base Sepolia
     const chainId = bodyChainId || 84532
+
+    if (!isAgentDelegatorConfigured(chainId)) {
+      return NextResponse.json(
+        {
+          error:
+            'Base Sepolia AgentDelegator address is not configured. Set NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS to the deployed AgentDelegator contract.',
+        },
+        { status: 500 }
+      )
+    }
 
     // Verify the authorization is for the correct AgentDelegator contract
     const expectedContract = getAgentDelegatorAddress(chainId)

@@ -25,7 +25,7 @@ import {
 import { useChainId, useSignTypedData, useAccount, useReadContract, useSwitchChain } from 'wagmi'
 import { baseSepolia } from '@reown/appkit/networks'
 import { generateAndEnableWallet } from '@/lib/smartAccount'
-import { getAgentDelegatorAddress, isAgentDelegatorDeployed } from '@x402/contracts'
+import { getAgentDelegatorAddress, isAgentDelegatorConfigured } from '@/lib/smartAccount/agentDelegator'
 import { getUsdcConfigSafe } from '@/config/tokens'
 import { erc20Abi, type Address, type Hex, type Hash } from 'viem'
 
@@ -81,7 +81,7 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain()
   const targetChainId = baseSepolia.id
   const isWrongChain = chainId !== targetChainId
-  const isSupported = isAgentDelegatorDeployed(targetChainId)
+  const isSupported = isAgentDelegatorConfigured(targetChainId)
 
   // Always check Base Sepolia USDC, regardless of the currently selected wallet chain.
   const usdcConfig = getUsdcConfigSafe(targetChainId)
@@ -109,7 +109,15 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
     : '0.00'
 
   const handleGenerate = useCallback(async () => {
-    if (!isSupported || !address) return
+    if (!address) return
+
+    if (!isSupported) {
+      setError(
+        'Base Sepolia AgentDelegator address is not configured. Set NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS to the deployed AgentDelegator contract.'
+      )
+      setState('error')
+      return
+    }
 
     setState('enabling')
     setEnablingStep('payment')
@@ -335,6 +343,15 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
                 </div>
               )}
 
+              {!isSupported && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertTriangle className="size-4" />
+                    Base Sepolia AgentDelegator address is not configured.
+                  </div>
+                </div>
+              )}
+
               {isBalanceLoading && (
                 <div className="rounded-lg border bg-muted/50 p-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -351,10 +368,12 @@ export function GenerateWalletModal({ open, onOpenChange }: GenerateWalletModalP
               </Button>
               <Button
                 onClick={handleGenerate}
-                disabled={!isSupported || !address || hasInsufficientBalance || isBalanceLoading || isSwitchingChain}
+                disabled={!address || hasInsufficientBalance || isBalanceLoading || isSwitchingChain}
               >
                 {isSwitchingChain
                   ? 'Switching Network...'
+                  : !isSupported
+                    ? 'Configure AgentDelegator'
                   : hasInsufficientBalance && !isBalanceLoading
                   ? 'Insufficient USDC'
                   : isWrongChain

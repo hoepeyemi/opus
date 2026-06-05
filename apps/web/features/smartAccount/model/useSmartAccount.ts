@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useWalletClient, usePublicClient } from 'wagmi'
 import { useConnection } from 'wagmi'
-import { isAgentDelegatorDeployed, getAgentDelegatorAddress } from '@x402/contracts'
+import { isAgentDelegatorConfigured, getAgentDelegatorAddress } from '@/lib/smartAccount/agentDelegator'
 import { checkDelegation, getDelegationTarget, enableSmartAccount, type EnableSmartAccountError } from '@/lib/smartAccount'
 
 export type SmartAccountStatus =
@@ -43,7 +43,7 @@ export function useSmartAccount(): UseSmartAccountReturn {
   const [delegatedTo, setDelegatedTo] = useState<string | null>(null)
 
   // Check if contract is deployed on this chain
-  const isSupported = chainId ? isAgentDelegatorDeployed(chainId) : false
+  const isSupported = chainId ? isAgentDelegatorConfigured(chainId) : false
 
   /**
    * Check the current delegation status
@@ -55,7 +55,7 @@ export function useSmartAccount(): UseSmartAccountReturn {
       return
     }
 
-    if (!isAgentDelegatorDeployed(chainId)) {
+    if (!isAgentDelegatorConfigured(chainId)) {
       setStatus('unsupported')
       setDelegatedTo(null)
       return
@@ -98,7 +98,7 @@ export function useSmartAccount(): UseSmartAccountReturn {
       return
     }
 
-    if (!isAgentDelegatorDeployed(chainId)) {
+    if (!isAgentDelegatorConfigured(chainId)) {
       setStatus('unsupported')
       setError('Smart account not supported on this network')
       return
