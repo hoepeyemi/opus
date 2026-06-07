@@ -1,14 +1,17 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { useConnect, useConnectors } from 'wagmi'
+import { useConnect, useConnectors, useDisconnect } from 'wagmi'
 import { baseSepolia } from 'viem/chains'
+import { assertMetaMaskFlaskProvider } from '@/lib/metamask/connect'
+import type { EIP1193Provider } from '@metamask/connect-evm'
 
 export function useMetaMaskConnect() {
   const connectors = useConnectors()
   const { connectAsync, isPending, error } = useConnect()
+  const { disconnectAsync } = useDisconnect()
   const connector = useMemo(
-    () => connectors.find((item) => item.id === 'metaMaskFlask') ?? connectors[0],
+    () => connectors.find((item) => item.id === 'metaMaskSDK') ?? connectors[0],
     [connectors]
   )
 
@@ -17,11 +20,21 @@ export function useMetaMaskConnect() {
       throw new Error('MetaMask Flask connector is not available')
     }
 
-    await connectAsync({
+    const result = await connectAsync({
       connector,
       chainId: baseSepolia.id,
     })
-  }, [connectAsync, connector])
+    const provider = await connector.getProvider()
+
+    try {
+      await assertMetaMaskFlaskProvider(provider as EIP1193Provider)
+    } catch (error) {
+      await disconnectAsync().catch(() => undefined)
+      throw error
+    }
+
+    return result
+  }, [connectAsync, connector, disconnectAsync])
 
   return {
     open,

@@ -3,10 +3,12 @@ import { getAddress, isAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type {
   Erc20TokenAllowancePermission,
+  Erc20TokenPeriodicPermission,
   NativeTokenAllowancePermission,
   NativeTokenPeriodicPermission,
   NativeTokenStreamPermission,
   PermissionTypes,
+  RequestExecutionPermissionsReturnType,
   TokenApprovalRevocationPermission,
 } from '@metamask/smart-accounts-kit/actions'
 
@@ -24,7 +26,10 @@ export interface PermissionResponse {
 
 export interface GrantedMetaMaskPermission {
   grantedPermission: PermissionResponse
-  sessionAccount: ReturnType<typeof privateKeyToAccount>
+  sessionSigner: ReturnType<typeof privateKeyToAccount>
+  sessionAccount: {
+    address: Address
+  }
   delegator: Address
 }
 
@@ -41,6 +46,15 @@ interface BaseRequestParams {
 export interface Erc20TokenAllowanceParams extends BaseRequestParams {
   tokenAddress: Address
   allowanceAmount: bigint
+  startTime?: number
+  justification?: string
+  isAdjustmentAllowed?: boolean
+}
+
+export interface Erc20TokenPeriodicParams extends BaseRequestParams {
+  tokenAddress: Address
+  periodAmount: bigint
+  periodDuration: number
   startTime?: number
   justification?: string
   isAdjustmentAllowed?: boolean
@@ -92,7 +106,7 @@ function getSessionStorageKey(owner: Address, chainId: number): string {
   return `${SESSION_ACCOUNT_STORAGE_PREFIX}:${chainId}:${owner.toLowerCase()}`
 }
 
-export function getOrCreateMetaMaskSessionAccount(owner: Address, chainId: number) {
+export function getOrCreateMetaMaskSessionSigner(owner: Address, chainId: number) {
   const storageKey = getSessionStorageKey(owner, chainId)
   const existingPrivateKey = typeof window === 'undefined'
     ? null
@@ -108,6 +122,29 @@ export function getOrCreateMetaMaskSessionAccount(owner: Address, chainId: numbe
   }
 
   return privateKeyToAccount(privateKey)
+}
+
+export async function getOrCreateMetaMaskSessionAccount(
+  publicClient: PublicClient,
+  owner: Address,
+  chainId: number
+): Promise<{ signer: ReturnType<typeof privateKeyToAccount>; account: { address: Address } }> {
+  const signer = getOrCreateMetaMaskSessionSigner(owner, chainId)
+  const { Implementation, toMetaMaskSmartAccount } = await import('@metamask/smart-accounts-kit')
+  const account = await toMetaMaskSmartAccount({
+    client: publicClient,
+    implementation: Implementation.Hybrid,
+    deployParams: [signer.address, [], [], []],
+    deploySalt: '0x',
+    signer: { account: signer },
+  })
+
+  return {
+    signer,
+    account: {
+      address: account.address,
+    },
+  }
 }
 
 function getPermissionExpiry(expirySeconds?: number): number {
@@ -280,17 +317,17 @@ export async function requestMetaMaskExecutionPermission(
 
   await ensureMetaMaskFlaskSmartAccount(publicClient, walletClient, owner, chainId)
 
-  const sessionAccount = getOrCreateMetaMaskSessionAccount(owner, chainId)
-  const { erc7715ProviderActions } = await import('@metamask/smart-accounts-kit/actions') as {
-    erc7715ProviderActions: () => (client: WalletClient) => {
-      requestExecutionPermissions: (parameters: unknown[]) => Promise<PermissionResponse[]>
-    }
-  }
-  const requestExecutionPermissions = erc7715ProviderActions()(walletClient).requestExecutionPermissions
-  let grantedPermissions: PermissionResponse[]
+  const { signer: sessionSigner, account: sessionAccount } = await getOrCreateMetaMaskSessionAccount(
+    publicClient,
+    owner,
+    chainId
+  )
+  const { erc7715ProviderActions } = await import('@metamask/smart-accounts-kit/actions')
+  const permissionClient = walletClient.extend(erc7715ProviderActions())
+  let grantedPermissions: RequestExecutionPermissionsReturnType
 
   try {
-    grantedPermissions = await requestExecutionPermissions([
+    grantedPermissions = await permissionClient.requestExecutionPermissions([
       {
         chainId,
         from: owner,
@@ -316,6 +353,7 @@ export async function requestMetaMaskExecutionPermission(
 
   return {
     grantedPermission,
+    sessionSigner,
     sessionAccount,
     delegator,
   }
@@ -333,6 +371,24 @@ export function requestErc20TokenAllowancePermission(
       justification: params.justification,
     },
     isAdjustmentAllowed: params.isAdjustmentAllowed ?? false,
+  }
+
+  return requestMetaMaskExecutionPermission({ ...params, permission })
+}
+
+export function requestErc20TokenPeriodicPermission(
+  params: Erc20TokenPeriodicParams
+): Promise<GrantedMetaMaskPermission> {
+  const permission: Erc20TokenPeriodicPermission = {
+    type: 'erc20-token-periodic',
+    data: {
+      periodAmount: params.periodAmount,
+      periodDuration: params.periodDuration,
+      tokenAddress: params.tokenAddress,
+      startTime: params.startTime ?? Math.floor(Date.now() / 1000),
+      justification: params.justification,
+    },
+    isAdjustmentAllowed: params.isAdjustmentAllowed ?? true,
   }
 
   return requestMetaMaskExecutionPermission({ ...params, permission })
