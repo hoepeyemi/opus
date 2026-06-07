@@ -1,13 +1,13 @@
 'use client'
 
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 import { cn } from '@/lib/utils'
 import { usePayLinkGenerator } from '../model'
 import { LinkGeneratorInputView } from './LinkGeneratorInputView'
 import { LinkGeneratorGeneratedView } from './LinkGeneratorGeneratedView'
 
 export function LinkGeneratorView() {
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
 
   const {
     // Wallet state

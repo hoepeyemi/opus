@@ -57,7 +57,7 @@ export function LinkGeneratorInputView({
 
       {/* Steps */}
       <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8 mb-12">
-        <Step number={1} label="Connect Wallet" active={!address} completed={!!address} />
+        <Step number={1} label="Connect MetaMask Flask" active={!address} completed={!!address} />
         <Step number={2} label="Enter Amount" active={!!address && !canGenerate} completed={canGenerate} />
         <Step number={3} label="Share Link" active={canGenerate} />
       </div>
@@ -133,7 +133,7 @@ export function LinkGeneratorInputView({
           <div className="flex items-center justify-center gap-2 mt-4">
             <Button variant="ghost" size="sm" onClick={onOpenWallet} className="gap-2">
               <Wallet className="size-4" />
-              Connect Wallet to auto-fill your address
+              Connect MetaMask Flask to auto-fill your address
             </Button>
           </div>
         )}

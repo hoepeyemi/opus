@@ -6,15 +6,16 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../../"),
   // Transpile packages that need it
   transpilePackages: [
-    "@reown/appkit",
-    "@reown/appkit-adapter-wagmi",
-    "@reown/appkit-siwx",
-    "@walletconnect/universal-provider",
-    "@walletconnect/ethereum-provider",
+    "@metamask/connect-evm",
+    "@metamask/connect-multichain",
   ],
   webpack: (config) => {
     // Handle optional dependencies
     config.externals.push("pino-pretty", "lokijs", "encoding");
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      debug: path.join(__dirname, "node_modules/debug/src/browser.js"),
+    };
     // Ignore optional wallet connectors and React Native modules
     config.resolve.fallback = {
       ...config.resolve.fallback,

@@ -23,7 +23,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { useChainId, useSignTypedData, useAccount, useReadContract, useSwitchChain } from 'wagmi'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 import { generateAndEnableWallet } from '@/lib/smartAccount'
 import { getAgentDelegatorAddress, isAgentDelegatorConfigured } from '@/lib/smartAccount/agentDelegator'
 import { getUsdcConfigSafe } from '@/config/tokens'

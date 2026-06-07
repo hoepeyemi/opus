@@ -2,7 +2,7 @@
 
 import { Wallet, LogOut, Copy, Check, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -40,11 +40,11 @@ function formatCompactNumber(value: string | number): string {
 
 /**
  * Compact user status component showing wallet info with dropdown menu.
- * Shows "Sign In" button when not authenticated.
+ * Shows a connect button only when no wallet is connected.
  */
 export function UserStatus() {
   const { session, formattedBalance, isLoading, signOut } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
   const [copied, setCopied] = useState(false)
 
   const handleCopyAddress = async () => {
@@ -59,8 +59,8 @@ export function UserStatus() {
     await signOut()
   }
 
-  // Not authenticated - show sign in button
-  if (!session?.isAuthenticated) {
+  // No connected wallet - show connect button.
+  if (!session?.walletAddress) {
     return (
       <Button
         variant="outline"
@@ -69,7 +69,7 @@ export function UserStatus() {
         className="gap-2"
       >
         <Wallet className="size-4" />
-        {isLoading ? 'Connecting...' : 'Sign In'}
+        {isLoading ? 'Connecting...' : 'Connect MetaMask Flask'}
       </Button>
     )
   }

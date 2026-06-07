@@ -42,9 +42,37 @@ const METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS = new Set([
   11155111, 84532, 11155420, 421614, 80002, 59141, 10200,
 ])
 
+interface FacilitatorCallResult {
+  ok: boolean
+  status: number
+  body: Record<string, unknown>
+}
+
+function normalizeBase64(value: string): string {
+  const trimmed = value.trim()
+  const withoutScheme = trimmed.includes(' ')
+    ? trimmed.slice(trimmed.lastIndexOf(' ') + 1)
+    : trimmed
+
+  return withoutScheme
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+}
+
 function decodeBase64Json<T>(value: string): T {
-  const decoded = Buffer.from(value, 'base64').toString('utf8')
+  const normalized = normalizeBase64(value)
+  const decoded = Buffer.from(normalized, 'base64').toString('utf8')
   return JSON.parse(decoded) as T
+}
+
+function parsePaymentHeaderJson<T>(value: string): T {
+  const trimmed = value.trim()
+
+  if (trimmed.startsWith('{')) {
+    return JSON.parse(trimmed) as T
+  }
+
+  return decodeBase64Json<T>(trimmed)
 }
 
 export function getMetaMaskX402Facilitators(): Address[] {
@@ -91,7 +119,7 @@ export function encodePaymentRequiredHeader(requirements: MetaMaskX402PaymentReq
 }
 
 export function parseMetaMaskX402PaymentHeader(value: string): MetaMaskX402PaymentHeader {
-  const header = decodeBase64Json<MetaMaskX402PaymentHeader>(value)
+  const header = parsePaymentHeaderJson<MetaMaskX402PaymentHeader>(value)
 
   if (header.x402Version !== 2) {
     throw new Error('Unsupported MetaMask x402 version')
@@ -117,16 +145,16 @@ function validateMetaMaskPayment(
 
 async function callMetaMaskFacilitator(
   action: 'verify' | 'settle',
-  paymentHeader: string,
+  header: MetaMaskX402PaymentHeader,
   requirements: MetaMaskX402PaymentRequirements
-): Promise<Response> {
+): Promise<FacilitatorCallResult> {
   const facilitatorUrl = getFacilitatorUrl()
 
   if (!facilitatorUrl) {
     throw new Error('METAMASK_X402_FACILITATOR_URL is not configured')
   }
 
-  return fetch(`${facilitatorUrl}/${action}`, {
+  const response = await fetch(`${facilitatorUrl}/${action}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -134,10 +162,33 @@ async function callMetaMaskFacilitator(
     },
     body: JSON.stringify({
       x402Version: 2,
-      paymentHeader,
+      paymentPayload: header,
       paymentRequirements: requirements,
     }),
   })
+
+  const text = await response.text()
+
+  if (!text.trim()) {
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: {},
+    }
+  }
+
+  try {
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: JSON.parse(text) as Record<string, unknown>,
+    }
+  } catch {
+    const preview = text.length > 180 ? `${text.slice(0, 180)}...` : text
+    throw new Error(
+      `METAMASK_X402_FACILITATOR_URL returned non-JSON ${response.status} for /${action}: ${preview}`
+    )
+  }
 }
 
 export async function verifyMetaMaskX402Payment(
@@ -152,10 +203,11 @@ export async function verifyMetaMaskX402Payment(
       return null
     }
 
-    const response = await callMetaMaskFacilitator('verify', paymentHeader, header.accepted)
-    const result = await response.json()
+    const response = await callMetaMaskFacilitator('verify', header, header.accepted)
+    const result = response.body
 
     if (!response.ok || result.isValid !== true) {
+      console.error('[MetaMask x402] Facilitator verification rejected payment:', result)
       return null
     }
 
@@ -174,20 +226,21 @@ export async function settleMetaMaskX402Payment(
   header: MetaMaskX402PaymentHeader
 ): Promise<{ txHash: Hex } | null> {
   try {
-    const response = await callMetaMaskFacilitator('settle', paymentHeader, header.accepted)
-    const result = await response.json()
+    const response = await callMetaMaskFacilitator('settle', header, header.accepted)
+    const result = response.body
 
     if (!response.ok) {
+      console.error('[MetaMask x402] Facilitator settlement failed:', result)
       return null
     }
 
     const txHash = result.txHash ?? result.transactionHash
 
-    if (!txHash) {
+    if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]+$/.test(txHash)) {
       return null
     }
 
-    return { txHash }
+    return { txHash: txHash as Hex }
   } catch (error) {
     console.error('[MetaMask x402] Settlement failed:', error)
     return null

@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { Address } from 'viem'
 import { useConnection } from 'wagmi'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 import { useUser } from '@/context/user'
 import { defaultChainId } from '@/config/tokens'
 import { usePayment, useSessionPayment } from './index'
@@ -144,7 +144,7 @@ export function usePaymentOrchestration(
     }
 
     if (!isAuthenticated) {
-      return 'Connect Wallet'
+      return 'Connect MetaMask Flask'
     }
 
     if (useSession && !isSmartAccountEnabled) {

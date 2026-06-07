@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useConnection } from 'wagmi'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 import type { UseAuthorizationReturn } from './useAuthorization'
 
 /**

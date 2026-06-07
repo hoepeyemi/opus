@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Address } from 'viem'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 import { getKnownContract, type KnownContract } from '@/lib/contracts'
 
 /**

@@ -1,4 +1,8 @@
-import type { Address, PublicClient, WalletClient } from 'viem'
+import type { Address, Hex, PublicClient, WalletClient } from 'viem'
+import {
+  METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS,
+  requestErc20TokenAllowancePermission,
+} from './advancedPermissions'
 
 export interface MetaMaskX402Requirements {
   scheme: string
@@ -22,11 +26,6 @@ export interface CreateMetaMaskX402PaymentParams {
   publicClient: PublicClient
   walletClient: WalletClient
 }
-
-const METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS = new Set([
-  1, 10, 56, 100, 137, 8453, 42161, 42170, 59144, 80094, 130, 747474,
-  11155111, 84532, 11155420, 421614, 80002, 59141, 10200,
-])
 
 function encodeBase64(value: unknown): string {
   const json = JSON.stringify(value)
@@ -77,14 +76,6 @@ function assertErc7710Requirements(requirements: MetaMaskX402Requirements): Addr
   return facilitators
 }
 
-async function importRuntimeModule<T>(specifier: string): Promise<T> {
-  const importer = new Function('specifier', 'return import(specifier)') as (
-    specifier: string
-  ) => Promise<T>
-
-  return importer(specifier)
-}
-
 export function isMetaMaskX402SupportedNetwork(network: string): boolean {
   try {
     return METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS.has(parseChainId(network))
@@ -105,71 +96,46 @@ export async function createMetaMaskX402PaymentSignature({
     throw new Error(`MetaMask Smart Accounts do not support chain ${chainId}`)
   }
 
-  const buyerAddress = walletClient.account?.address
+  const account = walletClient.account
+  const buyerAddress = account?.address
 
   if (!buyerAddress) {
     throw new Error('Connected wallet account is not available')
   }
 
-  const {
-    CaveatType,
-    Implementation,
-    ScopeType,
-    createOpenDelegation,
-    toMetaMaskSmartAccount,
-  } = await importRuntimeModule<{
-    CaveatType: { Redeemer: unknown }
-    Implementation: { Hybrid: unknown }
-    ScopeType: { Erc20TransferAmount: unknown }
-    createOpenDelegation: (args: unknown) => unknown
-    toMetaMaskSmartAccount: (args: unknown) => Promise<{
-      address: Address
-      environment: { DelegationManager: Address }
-      signDelegation: (args: { delegation: unknown }) => Promise<`0x${string}`>
-    }>
-  }>('@metamask/smart-accounts-kit')
-  const { encodeDelegations } = await importRuntimeModule<{
-    encodeDelegations: (delegations: unknown[]) => `0x${string}`
-  }>('@metamask/smart-accounts-kit/utils')
-
-  const buyerSmartAccount = await toMetaMaskSmartAccount({
-    client: publicClient,
-    implementation: Implementation.Hybrid,
-    deployParams: [buyerAddress, [], [], []],
-    deploySalt: '0x',
-    signer: { walletClient },
-  } as never)
-
-  const delegation = createOpenDelegation({
-    from: buyerSmartAccount.address,
-    environment: buyerSmartAccount.environment,
-    scope: {
-      type: ScopeType.Erc20TransferAmount,
-      tokenAddress: requirements.asset,
-      maxAmount: BigInt(getPaymentAmount(requirements)),
+  const acceptedRequirements = {
+    ...requirements,
+    amount: getPaymentAmount(requirements),
+    maxAmountRequired: requirements.maxAmountRequired ?? getPaymentAmount(requirements),
+    extra: {
+      ...requirements.extra,
+      assetTransferMethod: 'erc7710',
+      facilitators,
+      facilitatorAddresses: facilitators,
     },
-    caveats: [
-      {
-        type: CaveatType.Redeemer,
-        redeemers: facilitators,
-      },
-    ],
+  }
+  const { grantedPermission, delegator } = await requestErc20TokenAllowancePermission({
+    publicClient,
+    walletClient,
+    chainId,
+    from: buyerAddress,
+    expirySeconds: requirements.maxTimeoutSeconds,
+    redeemer: facilitators,
+    payee: [requirements.payTo],
+    tokenAddress: requirements.asset,
+    allowanceAmount: BigInt(getPaymentAmount(requirements)),
+    startTime: Math.floor(Date.now() / 1000),
+    justification: `Permission to pay ${requirements.description ?? 'an x402 API request'} with USDC on Base Sepolia`,
+    isAdjustmentAllowed: false,
   })
-
-  const signature = await buyerSmartAccount.signDelegation({ delegation })
-  const signedDelegation = Object.assign({}, delegation, { signature })
-  const permissionContext = encodeDelegations([signedDelegation])
 
   return encodeBase64({
     x402Version: 2,
-    accepted: {
-      ...requirements,
-      amount: getPaymentAmount(requirements),
-    },
+    accepted: acceptedRequirements,
     payload: {
-      delegationManager: buyerSmartAccount.environment.DelegationManager,
-      permissionContext,
-      delegator: buyerSmartAccount.address,
+      delegationManager: grantedPermission.delegationManager,
+      permissionContext: grantedPermission.context,
+      delegator,
     },
   })
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash2, Loader2, Wallet, Terminal } from 'lucide-react'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -39,7 +39,7 @@ function getErrorMessages(errors: unknown[]): string {
 export function ProxyForm() {
   const { form, addHeader, removeHeader, addVariable, addVariablesByName, removeVariable, isEditing } = useProxyFormContext()
   const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
   const [curlInput, setCurlInput] = useState('')
   const [importDialogOpen, setImportDialogOpen] = useState(false)
 

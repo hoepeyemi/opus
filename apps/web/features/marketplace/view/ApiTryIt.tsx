@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useUser } from '@/context/user'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
+import { useAccount } from 'wagmi'
 import { useApiTryIt } from '@/features/marketplace/model/useApiTryIt'
 import { useSmartAccount } from '@/features/smartAccount/model/useSmartAccount'
 import { useSessions } from '@/features/sessionKeys/model'
@@ -34,7 +35,8 @@ export function ApiTryIt({
   requestBodyTemplate,
 }: ApiTryItProps) {
   const { session } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
+  const { isConnected } = useAccount()
   const [copied, setCopied] = useState(false)
 
   // Smart account and session state
@@ -77,9 +79,10 @@ export function ApiTryIt({
   const showBodyInput = ['POST', 'PUT', 'PATCH'].includes(httpMethod.toUpperCase())
 
   const isAuthenticated = session?.isAuthenticated
+  const canUseWallet = isAuthenticated || isConnected
 
   const handleTryIt = async () => {
-    if (!isAuthenticated) {
+    if (!canUseWallet) {
       open()
       return
     }
@@ -106,16 +109,16 @@ export function ApiTryIt({
       return (
         <>
           <Loader2 className="size-4 animate-spin" />
-          {useMetaMaskX402 ? 'Creating delegation...' : useSession ? 'Processing...' : 'Signing...'}
+          {useMetaMaskX402 ? 'Requesting permission...' : useSession ? 'Processing...' : 'Signing...'}
         </>
       )
     }
 
-    if (!isAuthenticated) {
+    if (!canUseWallet) {
       return (
         <>
           <Wallet className="size-4" />
-          Connect Wallet to Try
+          Connect MetaMask Flask to Try
         </>
       )
     }
@@ -142,7 +145,7 @@ export function ApiTryIt({
       <>
         {useMetaMaskX402 ? <Shield className="size-4" /> : useSession ? <Key className="size-4" /> : <Play className="size-4" />}
         Make Request ({formatPrice(pricePerRequest)})
-        {useMetaMaskX402 && ' - ERC-7710'}
+        {useMetaMaskX402 && ' - Flask'}
         {useSession && activeSession && !useMetaMaskX402 && ' - Auto'}
       </>
     )
@@ -160,7 +163,7 @@ export function ApiTryIt({
           {useSession && activeSession
             ? ' Payment will be signed automatically with your session key.'
             : useMetaMaskX402
-              ? ' Payment will use a MetaMask ERC-7710 delegation when the endpoint supports it.'
+              ? ' Payment will use MetaMask Flask Advanced Permissions when the endpoint supports ERC-7710.'
             : ` You'll need to sign a payment of ${formatPrice(pricePerRequest)} USDC on Base Sepolia.`}
         </CardDescription>
       </CardHeader>
@@ -216,7 +219,7 @@ export function ApiTryIt({
         )}
 
         {/* Session Payment Toggle */}
-        {isAuthenticated && (
+        {canUseWallet && (
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 rounded-lg border">
               <input
@@ -233,13 +236,13 @@ export function ApiTryIt({
               <div className="flex-1">
                 <Label htmlFor="useMetaMaskX402Api" className="flex items-center gap-2 cursor-pointer">
                   <Shield className="size-4" />
-                  Use MetaMask ERC-7710
+                  Use MetaMask Flask
                   <Badge variant="secondary" className="text-xs">
-                    Delegation
+                    ERC-7715
                   </Badge>
                 </Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Creates a MetaMask Smart Account delegation for x402 endpoints that advertise ERC-7710.
+                  Requests an Advanced Permission from MetaMask Flask for ERC-7710 x402 payments.
                 </p>
               </div>
             </div>

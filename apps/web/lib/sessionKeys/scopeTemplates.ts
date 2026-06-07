@@ -1,5 +1,5 @@
 import type { Address, Hex } from 'viem'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 import { getUsdcConfig } from '@/config/tokens'
 import { getKnownContract } from '@/lib/contracts'
 import type { EIP712Scope, ExecuteScope, SessionScope } from './types'

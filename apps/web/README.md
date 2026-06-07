@@ -4,7 +4,7 @@ Next.js 16 frontend and API backend for the x402 Payment Marketplace. Enables de
 
 ## Features
 
-- **Wallet Authentication** - Sign-In with Ethereum (SIWE) using Reown AppKit
+- **Wallet Connection** - MetaMask Connect EVM wallet connection on Base Sepolia
 - **API Marketplace** - Browse, publish, and manage pay-per-call APIs
 - **MCP Server Management** - Configure MCP servers for AI agent integration
 - **Session Keys** - ERC-7702 delegated session keys for scoped permissions
@@ -22,14 +22,13 @@ Next.js 16 frontend and API backend for the x402 Payment Marketplace. Enables de
 
    | Variable | Description |
    |----------|-------------|
-   | `NEXT_PUBLIC_REOWN_PROJECT_ID` | Get from [cloud.reown.com](https://cloud.reown.com/) |
+   | `NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL` | Optional Base Sepolia RPC URL for MetaMask Connect EVM (defaults to `https://sepolia.base.org`) |
    | `DATABASE_URL` | PostgreSQL connection string |
    | `REDIS_URL` | Redis connection string |
    | `SESSION_SECRET` | 32+ character secret (`openssl rand -base64 32`) |
    | `SERVER_PUBLIC_KEY` | RSA public key for header encryption |
    | `SERVER_PRIVATE_KEY` | RSA private key for header encryption |
    | `MCP_PUBLIC_URL` | Public URL of MCP server (e.g., `https://mcp.yourdomain.com`) - used in OAuth metadata to tell clients where to connect for MCP traffic |
-
 3. Start the databases:
    ```bash
    # PostgreSQL

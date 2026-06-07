@@ -1,4 +1,13 @@
 export function getFacilitatorUrl(): string | null {
-  return process.env.METAMASK_X402_FACILITATOR_URL?.replace(/\/$/, '') ?? null
-}
+  const raw = process.env.METAMASK_X402_FACILITATOR_URL?.trim()
 
+  if (!raw) {
+    return null
+  }
+
+  const url = raw
+    .replace(/\/$/, '')
+    .replace(/\/supported$/i, '')
+
+  return url
+}

@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { WorkflowsListView } from '@/features/workflows/view/WorkflowsListView'
 import { useUser } from '@/context/user'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 
 export default function DashboardWorkflowsPage() {
   const router = useRouter()
   const { session, isLoading } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
 
   const isAuthenticated = session?.isAuthenticated
 
@@ -40,9 +40,7 @@ export default function DashboardWorkflowsPage() {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={() => open()} size="lg" className="gap-2">
-              <Wallet className="size-4" />
-              Connect Wallet
-            </Button>
+              <Wallet className="size-4" />Connect MetaMask Flask</Button>
             <Button variant="ghost" onClick={() => router.push('/workflows')}>
               Browse Public Workflows
             </Button>

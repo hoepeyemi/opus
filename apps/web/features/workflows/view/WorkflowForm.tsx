@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, Trash2, Loader2, Wallet, ChevronUp, ChevronDown } from 'lucide-react'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -33,7 +33,7 @@ export function WorkflowForm() {
     moveStepDown,
   } = useWorkflowFormContext()
   const { isAuthenticated, isLoading: isAuthLoading } = useIsAuthenticated()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
 
   return (
     <form

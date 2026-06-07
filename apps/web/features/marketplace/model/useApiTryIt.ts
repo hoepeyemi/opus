@@ -55,7 +55,7 @@ interface UseApiTryItOptions {
   sessionId?: string
   /** Whether to use session key signing */
   useSessionKey?: boolean
-  /** Whether to use MetaMask ERC-7710 delegation payments */
+  /** Whether to use MetaMask Flask Advanced Permissions for ERC-7710 x402 payments */
   useMetaMaskX402?: boolean
 }
 
@@ -268,13 +268,13 @@ export function useApiTryIt({
   }, [signTypedData])
 
   /**
-   * Create an ERC-7710 x402 payment payload using MetaMask Smart Accounts.
+   * Create an ERC-7710 x402 payment payload using MetaMask Flask Advanced Permissions.
    */
   const createMetaMaskPaymentHeader = useCallback(async (
     requirements: PaymentRequirements
   ): Promise<string> => {
     if (!publicClient || !walletClient) {
-      throw new Error('MetaMask ERC-7710 payment requires a connected wallet client')
+      throw new Error('MetaMask Flask Advanced Permissions require a connected wallet client')
     }
 
     return createMetaMaskX402PaymentSignature({
@@ -335,6 +335,12 @@ export function useApiTryIt({
         ...headerRequirements,
         maxAmountRequired: headerRequirements.maxAmountRequired ?? headerRequirements.amount ?? '0',
       }
+    }
+
+    if (useMetaMaskX402) {
+      throw new Error(
+        'This API did not advertise MetaMask Flask Advanced Permissions support. Check METAMASK_X402_FACILITATOR_URL and METAMASK_X402_FACILITATORS, or turn off "Use MetaMask Flask".'
+      )
     }
 
     const responseData = await initialResponse.json()

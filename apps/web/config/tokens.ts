@@ -1,5 +1,5 @@
 import type { Address } from 'viem'
-import { baseSepolia } from '@reown/appkit/networks'
+import { baseSepolia } from 'viem/chains'
 
 export interface TokenConfig {
   address: Address

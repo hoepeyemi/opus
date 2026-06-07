@@ -8,12 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ProxyManagementCard } from '@/features/dashboard/view/ProxyManagementCard'
 import { useDashboard } from '@/features/dashboard/model/useDashboard'
 import { useUser } from '@/context/user'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 
 export default function DashboardApisPage() {
   const router = useRouter()
   const { session, isLoading: userLoading } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
   const {
     proxies,
     isLoading,
@@ -50,9 +50,7 @@ export default function DashboardApisPage() {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={() => open()} size="lg" className="gap-2">
-              <Wallet className="size-4" />
-              Connect Wallet
-            </Button>
+              <Wallet className="size-4" />Connect MetaMask Flask</Button>
             <Button variant="ghost" onClick={() => router.push('/explore')}>
               Browse APIs Instead
             </Button>

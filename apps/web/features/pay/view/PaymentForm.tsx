@@ -1,7 +1,7 @@
 'use client'
 
 import type { Address } from 'viem'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 import { Wallet, Send, Loader2, Check, AlertCircle, ExternalLink, Key, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,7 @@ export function PaymentForm({
   amountUsd,
   amountSmallestUnit: initialAmountSmallestUnit,
 }: PaymentFormProps) {
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
 
   // Use orchestration hook for all payment logic
   const {

@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { WorkflowDetailView } from '@/features/workflows/view/WorkflowDetailView'
 import { useUser } from '@/context/user'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 
 export function WorkflowDetailClient({ workflowId }: { workflowId: string }) {
   const router = useRouter()
   const { session, isLoading } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
 
   const isAuthenticated = session?.isAuthenticated
 
@@ -38,9 +38,7 @@ export function WorkflowDetailClient({ workflowId }: { workflowId: string }) {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={() => open()} size="lg" className="gap-2">
-              <Wallet className="size-4" />
-              Connect Wallet
-            </Button>
+              <Wallet className="size-4" />Connect MetaMask Flask</Button>
             <Button variant="ghost" onClick={() => router.push('/workflows')}>
               Back to Workflows
             </Button>

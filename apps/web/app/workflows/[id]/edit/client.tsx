@@ -8,12 +8,12 @@ import { WorkflowFormProvider, WorkflowForm } from '@/features/workflows'
 import { useWorkflow } from '@/features/workflows/model/useWorkflows'
 import { workflowDefinitionToForm } from '@/features/workflows/model/types'
 import { useUser } from '@/context/user'
-import { useAppKit } from '@reown/appkit/react'
+import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 
 export function EditWorkflowClient({ workflowId }: { workflowId: string }) {
   const router = useRouter()
   const { session, isLoading: isAuthLoading } = useUser()
-  const { open } = useAppKit()
+  const { open } = useMetaMaskConnect()
   const { workflow, isLoading: isWorkflowLoading, isError, error } = useWorkflow(workflowId)
 
   const isAuthenticated = session?.isAuthenticated
@@ -42,9 +42,7 @@ export function EditWorkflowClient({ workflowId }: { workflowId: string }) {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={() => open()} size="lg" className="gap-2">
-              <Wallet className="size-4" />
-              Connect Wallet
-            </Button>
+              <Wallet className="size-4" />Connect MetaMask Flask</Button>
             <Button variant="ghost" onClick={() => router.push('/workflows')}>
               Back to Workflows
             </Button>

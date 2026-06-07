@@ -24,7 +24,7 @@ export const chainConfigs: Record<number, ChainConfig> = {
     chainId: 84532,
     name: 'base-sepolia',
     officialFacilitatorUrl: getFacilitatorUrl(),
-    usdcAddress: SHARED_CHAIN_CONFIGS[84532].usdc.address,
+    usdcAddress: sharedGetUsdcAddress(84532),
     rpcUrl: SHARED_CHAIN_CONFIGS[84532].rpcUrl,
   },
 }

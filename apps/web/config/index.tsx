@@ -1,25 +1,16 @@
-import { cookieStorage, createStorage } from '@wagmi/core'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { baseSepolia } from '@reown/appkit/networks'
-
-// Get project ID from environment
-export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID
-
-if (!projectId) {
-  console.warn('NEXT_PUBLIC_REOWN_PROJECT_ID is not set. Get one at https://cloud.reown.com/')
-}
+import { cookieStorage, createConfig, createStorage } from '@wagmi/core'
+import { baseSepolia } from 'viem/chains'
+import { metaMaskConnect, metaMaskConnectTransports } from '@/lib/metamask/connect'
 
 export const networks = [baseSepolia] as [typeof baseSepolia]
 
-// Create wagmi adapter
-export const wagmiAdapter = new WagmiAdapter({
+export const config = createConfig({
+  chains: networks,
+  connectors: [metaMaskConnect()],
+  transports: metaMaskConnectTransports,
   storage: createStorage({
     storage: cookieStorage,
   }),
   ssr: true,
-  projectId: projectId ?? '',
-  networks,
+  multiInjectedProviderDiscovery: false,
 })
-
-// Export wagmi config for use in providers
-export const config = wagmiAdapter.wagmiConfig
