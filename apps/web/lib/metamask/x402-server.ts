@@ -1,4 +1,6 @@
 import type { Address, Hex } from 'viem'
+import { createPublicClient, erc20Abi, formatUnits, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
 import { getFacilitatorUrl } from '@/lib/facilitator/url'
 
 export interface MetaMaskX402PaymentRequirements {
@@ -46,6 +48,92 @@ interface FacilitatorCallResult {
   ok: boolean
   status: number
   body: Record<string, unknown>
+}
+
+function parseChainId(network: string): number | null {
+  const [namespace, reference] = network.split(':')
+  if (namespace !== 'eip155' || !reference) {
+    return null
+  }
+
+  const chainId = Number(reference)
+  return Number.isInteger(chainId) ? chainId : null
+}
+
+function getRpcUrl(chainId: number): string {
+  if (chainId === baseSepolia.id) {
+    return process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL
+      ?? process.env.BASE_SEPOLIA_RPC_URL
+      ?? baseSepolia.rpcUrls.default.http[0]
+  }
+
+  return baseSepolia.rpcUrls.default.http[0]
+}
+
+async function getTokenDiagnostics(header: MetaMaskX402PaymentHeader) {
+  const payer = header.payload.delegator
+  const asset = header.accepted.asset
+  const requiredAmount = BigInt(header.accepted.amount ?? header.accepted.maxAmountRequired)
+  const chainId = parseChainId(header.accepted.network)
+
+  if (!chainId) {
+    return {
+      payer,
+      asset,
+      requiredAmount: requiredAmount.toString(),
+      network: header.accepted.network,
+      error: 'Unable to parse x402 network',
+    }
+  }
+
+  try {
+    const client = createPublicClient({
+      chain: chainId === baseSepolia.id ? baseSepolia : undefined,
+      transport: http(getRpcUrl(chainId)),
+    })
+    const [balance, decimalsResult, symbolResult] = await Promise.all([
+      client.readContract({
+        address: asset,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [payer],
+      }),
+      client.readContract({
+        address: asset,
+        abi: erc20Abi,
+        functionName: 'decimals',
+      }).catch(() => 6),
+      client.readContract({
+        address: asset,
+        abi: erc20Abi,
+        functionName: 'symbol',
+      }).catch(() => 'USDC'),
+    ])
+    const decimals = typeof decimalsResult === 'number' ? decimalsResult : 6
+    const symbol = typeof symbolResult === 'string' ? symbolResult : 'USDC'
+
+    return {
+      payer,
+      asset,
+      network: header.accepted.network,
+      chainId,
+      payTo: header.accepted.payTo,
+      requiredAmount: requiredAmount.toString(),
+      requiredFormatted: `${formatUnits(requiredAmount, decimals)} ${symbol}`,
+      payerBalance: balance.toString(),
+      payerBalanceFormatted: `${formatUnits(balance, decimals)} ${symbol}`,
+      hasEnoughBalance: balance >= requiredAmount,
+      facilitatorUrl: getFacilitatorUrl(),
+    }
+  } catch (error) {
+    return {
+      payer,
+      asset,
+      requiredAmount: requiredAmount.toString(),
+      network: header.accepted.network,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 function normalizeBase64(value: string): string {
@@ -208,6 +296,7 @@ export async function verifyMetaMaskX402Payment(
 
     if (!response.ok || result.isValid !== true) {
       console.error('[MetaMask x402] Facilitator verification rejected payment:', result)
+      console.error('[MetaMask x402] Payment diagnostics:', await getTokenDiagnostics(header))
       return null
     }
 
@@ -231,12 +320,20 @@ export async function settleMetaMaskX402Payment(
 
     if (!response.ok) {
       console.error('[MetaMask x402] Facilitator settlement failed:', result)
+      console.error('[MetaMask x402] Payment diagnostics:', await getTokenDiagnostics(header))
       return null
     }
 
-    const txHash = result.txHash ?? result.transactionHash
+    if (result.success === false) {
+      console.error('[MetaMask x402] Facilitator settlement was not successful:', result)
+      console.error('[MetaMask x402] Payment diagnostics:', await getTokenDiagnostics(header))
+      return null
+    }
+
+    const txHash = result.transaction ?? result.txHash ?? result.transactionHash
 
     if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]+$/.test(txHash)) {
+      console.error('[MetaMask x402] Facilitator settlement response did not include an EVM transaction hash:', result)
       return null
     }
 

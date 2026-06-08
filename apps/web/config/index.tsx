@@ -1,5 +1,5 @@
-import { cookieStorage, createConfig, createStorage } from '@wagmi/core'
-import { baseSepolia } from 'viem/chains'
+import { cookieStorage, createConfig, createStorage } from 'wagmi'
+import { baseSepolia } from 'wagmi/chains'
 import { metaMaskConnect, metaMaskConnectTransports } from '@/lib/metamask/connect'
 
 export const networks = [baseSepolia] as [typeof baseSepolia]
@@ -12,5 +12,4 @@ export const config = createConfig({
     storage: cookieStorage,
   }),
   ssr: true,
-  multiInjectedProviderDiscovery: false,
 })

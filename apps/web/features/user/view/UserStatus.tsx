@@ -44,7 +44,7 @@ function formatCompactNumber(value: string | number): string {
  */
 export function UserStatus() {
   const { session, formattedBalance, isLoading, signOut } = useUser()
-  const { open } = useMetaMaskConnect()
+  const { open, error } = useMetaMaskConnect()
   const [copied, setCopied] = useState(false)
 
   const handleCopyAddress = async () => {
@@ -62,15 +62,22 @@ export function UserStatus() {
   // No connected wallet - show connect button.
   if (!session?.walletAddress) {
     return (
-      <Button
-        variant="outline"
-        onClick={() => open()}
-        disabled={isLoading}
-        className="gap-2"
-      >
-        <Wallet className="size-4" />
-        {isLoading ? 'Connecting...' : 'Connect MetaMask Flask'}
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          variant="outline"
+          onClick={() => open()}
+          disabled={isLoading}
+          className="gap-2"
+        >
+          <Wallet className="size-4" />
+          {isLoading ? 'Connecting...' : 'Connect MetaMask Flask'}
+        </Button>
+        {error && (
+          <p className="max-w-64 text-right text-xs text-destructive">
+            {error.message}
+          </p>
+        )}
+      </div>
     )
   }
 

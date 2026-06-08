@@ -1,6 +1,7 @@
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
-import { getAddress, isAddress } from 'viem'
+import { createWalletClient, getAddress, http, isAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import type { SmartAccountsEnvironment } from '@metamask/smart-accounts-kit'
 import type {
   Erc20TokenAllowancePermission,
   Erc20TokenPeriodicPermission,
@@ -26,9 +27,11 @@ export interface PermissionResponse {
 
 export interface GrantedMetaMaskPermission {
   grantedPermission: PermissionResponse
+  redelegatedPermissionContext: Hex
   sessionSigner: ReturnType<typeof privateKeyToAccount>
   sessionAccount: {
     address: Address
+    environment: SmartAccountsEnvironment
   }
   delegator: Address
 }
@@ -101,6 +104,14 @@ export const METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS = new Set([
 ])
 
 const SESSION_ACCOUNT_STORAGE_PREFIX = '@opus/metamask-flask-session'
+const SMART_ACCOUNT_UPGRADE_TIMEOUT_MS = 180_000
+const SMART_ACCOUNT_UPGRADE_POLL_INTERVAL_MS = 2_000
+
+type UpgradeCheckResult = {
+  upgraded: boolean
+  code?: Hex
+  delegatedAddress: Address | null
+}
 
 function getSessionStorageKey(owner: Address, chainId: number): string {
   return `${SESSION_ACCOUNT_STORAGE_PREFIX}:${chainId}:${owner.toLowerCase()}`
@@ -128,21 +139,18 @@ export async function getOrCreateMetaMaskSessionAccount(
   publicClient: PublicClient,
   owner: Address,
   chainId: number
-): Promise<{ signer: ReturnType<typeof privateKeyToAccount>; account: { address: Address } }> {
+): Promise<{
+  signer: ReturnType<typeof privateKeyToAccount>
+  account: { address: Address; environment: SmartAccountsEnvironment }
+}> {
   const signer = getOrCreateMetaMaskSessionSigner(owner, chainId)
-  const { Implementation, toMetaMaskSmartAccount } = await import('@metamask/smart-accounts-kit')
-  const account = await toMetaMaskSmartAccount({
-    client: publicClient,
-    implementation: Implementation.Hybrid,
-    deployParams: [signer.address, [], [], []],
-    deploySalt: '0x',
-    signer: { account: signer },
-  })
+  const { getSmartAccountsEnvironment } = await import('@metamask/smart-accounts-kit')
 
   return {
     signer,
     account: {
-      address: account.address,
+      address: signer.address,
+      environment: getSmartAccountsEnvironment(chainId),
     },
   }
 }
@@ -156,6 +164,16 @@ function getPermissionExpiry(expirySeconds?: number): number {
 
 function getFriendlyFlaskError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: number | string })?.code
+
+  if (
+    code === 4100 ||
+    message.includes('has not been authorized') ||
+    message.includes('not been authorized') ||
+    message.includes('method and/or account has not been authorized')
+  ) {
+    return 'MetaMask Flask rejected wallet_requestExecutionPermissions because this site/account is not authorized for Advanced Permissions. Open Flask, disconnect localhost from Connected sites, reconnect from opus on Base Sepolia, and approve the Advanced Permissions prompt. If regular MetaMask is also installed, disable regular MetaMask for localhost or use a Flask-only browser profile.'
+  }
 
   if (
     message.includes('wallet_requestExecutionPermissions') ||
@@ -168,6 +186,18 @@ function getFriendlyFlaskError(error: unknown): string {
   }
 
   return message
+}
+
+async function refreshMetaMaskAccountAuthorization(walletClient: WalletClient): Promise<void> {
+  const request = walletClient.request as (args: {
+    method: string
+    params?: unknown[]
+  }) => Promise<unknown>
+
+  await request({
+    method: 'eth_requestAccounts',
+    params: [],
+  })
 }
 
 function getFriendlyUpgradeError(error: unknown): string {
@@ -223,10 +253,24 @@ async function isMetaMaskFlaskAccountUpgraded(
   accountAddress: Address,
   expected: Address
 ): Promise<boolean> {
+  const result = await getMetaMaskFlaskUpgradeState(publicClient, accountAddress, expected)
+
+  return result.upgraded
+}
+
+async function getMetaMaskFlaskUpgradeState(
+  publicClient: PublicClient,
+  accountAddress: Address,
+  expected: Address
+): Promise<UpgradeCheckResult> {
   const code = await publicClient.getCode({ address: accountAddress })
   const delegatedAddress = getDelegatedAddress(code)
 
-  return delegatedAddress?.toLowerCase() === expected.toLowerCase()
+  return {
+    upgraded: delegatedAddress?.toLowerCase() === expected.toLowerCase(),
+    code,
+    delegatedAddress,
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -237,24 +281,56 @@ async function waitForMetaMaskFlaskUpgrade(
   publicClient: PublicClient,
   accountAddress: Address,
   expected: Address,
-  timeoutMs = 30_000
-): Promise<boolean> {
+  timeoutMs = SMART_ACCOUNT_UPGRADE_TIMEOUT_MS
+): Promise<UpgradeCheckResult> {
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (await isMetaMaskFlaskAccountUpgraded(publicClient, accountAddress, expected)) {
-      return true
+    const state = await getMetaMaskFlaskUpgradeState(publicClient, accountAddress, expected)
+    if (state.upgraded) {
+      return state
     }
 
-    await sleep(1_000)
+    await sleep(SMART_ACCOUNT_UPGRADE_POLL_INTERVAL_MS)
   }
 
-  return isMetaMaskFlaskAccountUpgraded(publicClient, accountAddress, expected)
+  return getMetaMaskFlaskUpgradeState(publicClient, accountAddress, expected)
+}
+
+async function createOpenRedelegatedPermissionContext({
+  publicClient,
+  sessionSigner,
+  sessionAccount,
+  chainId,
+  permissionContext,
+}: {
+  publicClient: PublicClient
+  sessionSigner: ReturnType<typeof privateKeyToAccount>
+  sessionAccount: { address: Address; environment: SmartAccountsEnvironment }
+  chainId: number
+  permissionContext: Hex
+}): Promise<Hex> {
+  const { erc7710WalletActions } = await import('@metamask/smart-accounts-kit/actions')
+  const sessionAccountWalletClient = createWalletClient({
+    account: sessionSigner,
+    chain: publicClient.chain,
+    transport: http(),
+  }).extend(erc7710WalletActions())
+
+  const { permissionContext: redelegatedPermissionContext } =
+    await sessionAccountWalletClient.redelegatePermissionContextOpen({
+      account: sessionSigner,
+      environment: sessionAccount.environment,
+      permissionContext,
+      chainId,
+    })
+
+  return redelegatedPermissionContext
 }
 
 export async function ensureMetaMaskFlaskSmartAccount(
   publicClient: PublicClient,
-  walletClient: WalletClient,
+  _walletClient: WalletClient,
   accountAddress: Address,
   chainId: number
 ): Promise<void> {
@@ -264,40 +340,15 @@ export async function ensureMetaMaskFlaskSmartAccount(
     return
   }
 
-  const request = walletClient.request as (args: {
-    method: string
-    params?: unknown[]
-  }) => Promise<unknown>
-
-  try {
-    await request({
-      method: 'wallet_sendCalls',
-      params: [
-        {
-          version: '2.0.0',
-          chainId: `0x${chainId.toString(16)}`,
-          from: accountAddress,
-          atomicRequired: true,
-          calls: [
-            {
-              to: accountAddress,
-              value: '0x0',
-            },
-          ],
-        },
-      ],
-    })
-  } catch (error) {
-    throw new Error(getFriendlyUpgradeError(error))
-  }
-
-  const upgraded = await waitForMetaMaskFlaskUpgrade(publicClient, accountAddress, expected)
-  if (upgraded) {
-    return
-  }
+  const result = await getMetaMaskFlaskUpgradeState(publicClient, accountAddress, expected)
+  const codeMessage = result.delegatedAddress
+    ? ` Current delegated address: ${result.delegatedAddress}; expected: ${expected}.`
+    : result.code && result.code !== '0x'
+      ? ` Account code is present but is not an EIP-7702 delegation to the expected MetaMask implementation.`
+      : ' Account code is still empty on Base Sepolia.'
 
   throw new Error(
-    `MetaMask Flask accepted the smart account upgrade request, but ${accountAddress} is still not delegated to EIP7702StatelessDeleGator on Base Sepolia. Confirm the MetaMask upgrade prompt, make sure Base Sepolia is selected, then try again.`
+    `MetaMask Flask account ${accountAddress} is not delegated to EIP7702StatelessDeleGator on Base Sepolia.${codeMessage} Use MetaMask Flask's Advanced Permissions prompt or switch this account to a MetaMask smart account on Base Sepolia, then try again.`
   )
 }
 
@@ -315,7 +366,19 @@ export async function requestMetaMaskExecutionPermission(
     throw new Error('Connected MetaMask Flask account is not available')
   }
 
-  await ensureMetaMaskFlaskSmartAccount(publicClient, walletClient, owner, chainId)
+  await refreshMetaMaskAccountAuthorization(walletClient)
+
+  // Check EOA code before requesting permissions (guide step 4).
+  // Flask 13.9+ handles the upgrade automatically during requestExecutionPermissions,
+  // but we still verify the state after granting.
+  const expectedImpl = await getMetaMaskStatelessDeleGatorAddress(chainId)
+  const preGrantState = await getMetaMaskFlaskUpgradeState(publicClient, owner, expectedImpl)
+  if (!preGrantState.upgraded) {
+    console.info(
+      `[MetaMask] Account ${owner} is not yet a MetaMask Smart Account on chain ${chainId}. ` +
+      `Flask 13.9+ will upgrade it automatically during the permissions prompt.`
+    )
+  }
 
   const { signer: sessionSigner, account: sessionAccount } = await getOrCreateMetaMaskSessionAccount(
     publicClient,
@@ -330,7 +393,6 @@ export async function requestMetaMaskExecutionPermission(
     grantedPermissions = await permissionClient.requestExecutionPermissions([
       {
         chainId,
-        from: owner,
         to: sessionAccount.address,
         expiry: getPermissionExpiry(expirySeconds),
         ...(redeemer?.length ? { redeemer } : {}),
@@ -347,12 +409,34 @@ export async function requestMetaMaskExecutionPermission(
     throw new Error('MetaMask Flask did not return a usable ERC-7715 permission context')
   }
 
+  const redelegatedPermissionContext = await createOpenRedelegatedPermissionContext({
+    publicClient,
+    sessionSigner,
+    sessionAccount,
+    chainId,
+    permissionContext: grantedPermission.context,
+  })
+
+  const upgradeState = await waitForMetaMaskFlaskUpgrade(publicClient, owner, expectedImpl)
+  if (!upgradeState.upgraded) {
+    const codeMessage = upgradeState.delegatedAddress
+      ? ` Current delegated address: ${upgradeState.delegatedAddress}; expected: ${expectedImpl}.`
+      : upgradeState.code && upgradeState.code !== '0x'
+        ? ` Account code is present but is not an EIP-7702 delegation to the expected MetaMask implementation.`
+        : ' Account code is still empty on Base Sepolia.'
+
+    throw new Error(
+      `MetaMask Flask granted an ERC-7715 permission, but ${owner} is still not delegated to EIP7702StatelessDeleGator on Base Sepolia.${codeMessage} Open MetaMask Flask, switch this account to a smart account on Base Sepolia, then try again.`
+    )
+  }
+
   const delegator = grantedPermission.from && isAddress(grantedPermission.from)
     ? grantedPermission.from
     : owner
 
   return {
     grantedPermission,
+    redelegatedPermissionContext,
     sessionSigner,
     sessionAccount,
     delegator,

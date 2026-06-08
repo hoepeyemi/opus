@@ -1,4 +1,5 @@
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
+import { erc20Abi, formatUnits } from 'viem'
 import {
   METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS,
   requestErc20TokenAllowancePermission,
@@ -76,6 +77,60 @@ function assertErc7710Requirements(requirements: MetaMaskX402Requirements): Addr
   return facilitators
 }
 
+async function readTokenMetadata(
+  publicClient: PublicClient,
+  asset: Address
+): Promise<{ decimals: number; symbol: string }> {
+  const [decimalsResult, symbolResult] = await Promise.allSettled([
+    publicClient.readContract({
+      address: asset,
+      abi: erc20Abi,
+      functionName: 'decimals',
+    }),
+    publicClient.readContract({
+      address: asset,
+      abi: erc20Abi,
+      functionName: 'symbol',
+    }),
+  ])
+
+  return {
+    decimals: decimalsResult.status === 'fulfilled' ? decimalsResult.value : 6,
+    symbol: symbolResult.status === 'fulfilled' ? symbolResult.value : 'USDC',
+  }
+}
+
+async function assertPayerHasTokenBalance({
+  publicClient,
+  payer,
+  asset,
+  amount,
+}: {
+  publicClient: PublicClient
+  payer: Address
+  asset: Address
+  amount: bigint
+}): Promise<void> {
+  const balance = await publicClient.readContract({
+    address: asset,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: [payer],
+  })
+
+  if (balance >= amount) {
+    return
+  }
+
+  const { decimals, symbol } = await readTokenMetadata(publicClient, asset)
+  throw new Error(
+    `Insufficient ${symbol} balance for MetaMask x402 payment. ` +
+    `Payer ${payer} has ${formatUnits(balance, decimals)} ${symbol} on the configured asset ${asset}, ` +
+    `but this API requires ${formatUnits(amount, decimals)} ${symbol}. ` +
+    `Make sure METAMASK_X402_ASSET_ADDRESS is Base Sepolia USDC and that this connected account holds the tokens.`
+  )
+}
+
 export function isMetaMaskX402SupportedNetwork(network: string): boolean {
   try {
     return METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS.has(parseChainId(network))
@@ -103,10 +158,18 @@ export async function createMetaMaskX402PaymentSignature({
     throw new Error('Connected wallet account is not available')
   }
 
+  const paymentAmount = BigInt(getPaymentAmount(requirements))
+  await assertPayerHasTokenBalance({
+    publicClient,
+    payer: buyerAddress,
+    asset: requirements.asset,
+    amount: paymentAmount,
+  })
+
   const acceptedRequirements = {
     ...requirements,
-    amount: getPaymentAmount(requirements),
-    maxAmountRequired: requirements.maxAmountRequired ?? getPaymentAmount(requirements),
+    amount: paymentAmount.toString(),
+    maxAmountRequired: requirements.maxAmountRequired ?? paymentAmount.toString(),
     extra: {
       ...requirements.extra,
       assetTransferMethod: 'erc7710',
@@ -114,7 +177,7 @@ export async function createMetaMaskX402PaymentSignature({
       facilitatorAddresses: facilitators,
     },
   }
-  const { grantedPermission, delegator } = await requestErc20TokenAllowancePermission({
+  const { grantedPermission, redelegatedPermissionContext, delegator } = await requestErc20TokenAllowancePermission({
     publicClient,
     walletClient,
     chainId,
@@ -123,7 +186,7 @@ export async function createMetaMaskX402PaymentSignature({
     redeemer: facilitators,
     payee: [requirements.payTo],
     tokenAddress: requirements.asset,
-    allowanceAmount: BigInt(getPaymentAmount(requirements)),
+    allowanceAmount: paymentAmount,
     startTime: Math.floor(Date.now() / 1000),
     justification: `Permission to pay ${requirements.description ?? 'an x402 API request'} with USDC on Base Sepolia`,
     isAdjustmentAllowed: false,
@@ -134,7 +197,7 @@ export async function createMetaMaskX402PaymentSignature({
     accepted: acceptedRequirements,
     payload: {
       delegationManager: grantedPermission.delegationManager,
-      permissionContext: grantedPermission.context,
+      permissionContext: redelegatedPermissionContext,
       delegator,
     },
   })

@@ -7,6 +7,7 @@ export function getFacilitatorUrl(): string | null {
 
   const url = raw
     .replace(/\/$/, '')
+    .replace(/\/(verify|settle)$/i, '')
     .replace(/\/supported$/i, '')
 
   return url
