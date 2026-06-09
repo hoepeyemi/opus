@@ -115,6 +115,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Operations
   const signOut = useCallback(async () => {
+    await fetch('/api/auth/session', { method: 'DELETE' }).catch((error) => {
+      console.error('Failed to destroy server session:', error)
+    })
+    setHasServerSession(false)
+    window.dispatchEvent(new Event(SESSION_DESTROYED_EVENT))
     disconnect.mutate()
   }, [disconnect])
 

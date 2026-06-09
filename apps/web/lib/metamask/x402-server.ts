@@ -16,6 +16,7 @@ export interface MetaMaskX402PaymentRequirements {
   extra: {
     assetTransferMethod: 'erc7710'
     facilitators: Address[]
+    facilitatorAddresses: Address[]
   }
 }
 
@@ -198,6 +199,7 @@ export function buildMetaMaskX402Requirements(
     extra: {
       assetTransferMethod: 'erc7710',
       facilitators: getMetaMaskX402Facilitators(),
+      facilitatorAddresses: getMetaMaskX402Facilitators(),
     },
   }
 }
@@ -279,6 +281,25 @@ async function callMetaMaskFacilitator(
   }
 }
 
+function findTransactionHash(value: unknown): Hex | null {
+  if (typeof value === 'string' && /^0x[a-fA-F0-9]{64}$/.test(value)) {
+    return value as Hex
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  for (const candidate of Object.values(value as Record<string, unknown>)) {
+    const txHash = findTransactionHash(candidate)
+    if (txHash) {
+      return txHash
+    }
+  }
+
+  return null
+}
+
 export async function verifyMetaMaskX402Payment(
   paymentHeader: string,
   expectedAmount: number,
@@ -324,20 +345,24 @@ export async function settleMetaMaskX402Payment(
       return null
     }
 
-    if (result.success === false) {
+    if (result.success === false || result.isValid === false) {
       console.error('[MetaMask x402] Facilitator settlement was not successful:', result)
       console.error('[MetaMask x402] Payment diagnostics:', await getTokenDiagnostics(header))
       return null
     }
 
-    const txHash = result.transaction ?? result.txHash ?? result.transactionHash
+    const txHash = findTransactionHash(result.txHash)
+      ?? findTransactionHash(result.transactionHash)
+      ?? findTransactionHash(result.tx)
+      ?? findTransactionHash(result)
 
-    if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]+$/.test(txHash)) {
-      console.error('[MetaMask x402] Facilitator settlement response did not include an EVM transaction hash:', result)
+    if (!txHash) {
+      console.error('[MetaMask x402] Facilitator settlement response did not include a transaction hash:', result)
+      console.error('[MetaMask x402] Payment diagnostics:', await getTokenDiagnostics(header))
       return null
     }
 
-    return { txHash: txHash as Hex }
+    return { txHash }
   } catch (error) {
     console.error('[MetaMask x402] Settlement failed:', error)
     return null

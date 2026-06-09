@@ -18,6 +18,7 @@ export interface MetaMaskX402Requirements {
   extra?: {
     assetTransferMethod?: string
     facilitators?: Address[]
+    facilitatorAddresses?: Address[]
     [key: string]: unknown
   }
 }
@@ -68,7 +69,9 @@ function assertErc7710Requirements(requirements: MetaMaskX402Requirements): Addr
     throw new Error('This endpoint did not advertise ERC-7710 x402 payments')
   }
 
-  const facilitators = requirements.extra.facilitators ?? []
+  const facilitators = requirements.extra.facilitators
+    ?? requirements.extra.facilitatorAddresses
+    ?? []
 
   if (facilitators.length === 0) {
     throw new Error('ERC-7710 payment requirements did not include facilitator addresses')
@@ -177,7 +180,7 @@ export async function createMetaMaskX402PaymentSignature({
       facilitatorAddresses: facilitators,
     },
   }
-  const { grantedPermission, redelegatedPermissionContext, delegator } = await requestErc20TokenAllowancePermission({
+  const { delegationManager, redelegatedPermissionContext, delegator } = await requestErc20TokenAllowancePermission({
     publicClient,
     walletClient,
     chainId,
@@ -190,13 +193,22 @@ export async function createMetaMaskX402PaymentSignature({
     startTime: Math.floor(Date.now() / 1000),
     justification: `Permission to pay ${requirements.description ?? 'an x402 API request'} with USDC on Base Sepolia`,
     isAdjustmentAllowed: false,
+    x402PaymentRequirements: {
+      scheme: acceptedRequirements.scheme,
+      network: acceptedRequirements.network,
+      asset: acceptedRequirements.asset,
+      amount: paymentAmount.toString(),
+      payTo: acceptedRequirements.payTo,
+      maxTimeoutSeconds: acceptedRequirements.maxTimeoutSeconds ?? 300,
+      extra: acceptedRequirements.extra,
+    },
   })
 
   return encodeBase64({
     x402Version: 2,
     accepted: acceptedRequirements,
     payload: {
-      delegationManager: grantedPermission.delegationManager,
+      delegationManager,
       permissionContext: redelegatedPermissionContext,
       delegator,
     },

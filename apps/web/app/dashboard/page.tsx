@@ -11,9 +11,10 @@ import { useMetaMaskConnect } from '@/features/wallet/model/useMetaMaskConnect'
 export default function DashboardPage() {
   const router = useRouter()
   const { session, isLoading } = useUser()
-  const { open } = useMetaMaskConnect()
+  const { open, error, isPending } = useMetaMaskConnect()
 
   const isAuthenticated = session?.isAuthenticated
+  const hasConnectedWallet = Boolean(session?.walletAddress)
 
   // Show loading while checking auth
   if (isLoading) {
@@ -33,14 +34,27 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="text-center">
             <Wallet className="size-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>Connect Your Wallet</CardTitle>
+            <CardTitle>{hasConnectedWallet ? 'Sign In' : 'Connect Your Wallet'}</CardTitle>
             <CardDescription>
-              You need to connect your wallet to access your dashboard and manage your APIs.
+              {hasConnectedWallet
+                ? 'Sign this message to create your dashboard session.'
+                : 'You need to connect your wallet to access your dashboard and manage your APIs.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
-            <Button onClick={() => open()} size="lg" className="gap-2">
-              <Wallet className="size-4" />Connect MetaMask Flask</Button>
+            <Button onClick={() => void open()} disabled={isPending} size="lg" className="gap-2">
+              <Wallet className="size-4" />
+              {isPending
+                ? 'Waiting for MetaMask...'
+                : hasConnectedWallet
+                  ? 'Sign In with MetaMask Flask'
+                  : 'Connect MetaMask Flask'}
+            </Button>
+            {error && (
+              <p className="text-center text-sm text-destructive">
+                {error.message}
+              </p>
+            )}
             <Button variant="ghost" onClick={() => router.push('/')}>
               Browse APIs Instead
             </Button>

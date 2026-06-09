@@ -1,5 +1,5 @@
 import type { Address, Hex, PublicClient, WalletClient } from 'viem'
-import { createWalletClient, getAddress, http, isAddress } from 'viem'
+import { getAddress, isAddress } from 'viem'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { SmartAccountsEnvironment } from '@metamask/smart-accounts-kit'
 import type {
@@ -28,12 +28,23 @@ export interface PermissionResponse {
 export interface GrantedMetaMaskPermission {
   grantedPermission: PermissionResponse
   redelegatedPermissionContext: Hex
+  delegationManager: Address
   sessionSigner: ReturnType<typeof privateKeyToAccount>
   sessionAccount: {
     address: Address
     environment: SmartAccountsEnvironment
   }
   delegator: Address
+}
+
+interface X402PaymentRequirementsForDelegation {
+  scheme: string
+  network: string
+  asset: Address
+  amount: string
+  payTo: Address
+  maxTimeoutSeconds: number
+  extra?: Record<string, unknown>
 }
 
 interface BaseRequestParams {
@@ -52,6 +63,7 @@ export interface Erc20TokenAllowanceParams extends BaseRequestParams {
   startTime?: number
   justification?: string
   isAdjustmentAllowed?: boolean
+  x402PaymentRequirements?: X402PaymentRequirementsForDelegation
 }
 
 export interface Erc20TokenPeriodicParams extends BaseRequestParams {
@@ -298,34 +310,42 @@ async function waitForMetaMaskFlaskUpgrade(
 }
 
 async function createOpenRedelegatedPermissionContext({
-  publicClient,
   sessionSigner,
   sessionAccount,
-  chainId,
   permissionContext,
+  paymentRequirements,
+  expirySeconds,
+  redeemer,
 }: {
-  publicClient: PublicClient
   sessionSigner: ReturnType<typeof privateKeyToAccount>
   sessionAccount: { address: Address; environment: SmartAccountsEnvironment }
-  chainId: number
   permissionContext: Hex
-}): Promise<Hex> {
-  const { erc7710WalletActions } = await import('@metamask/smart-accounts-kit/actions')
-  const sessionAccountWalletClient = createWalletClient({
+  paymentRequirements: X402PaymentRequirementsForDelegation
+  expirySeconds?: number
+  redeemer?: readonly Address[]
+}): Promise<{ permissionContext: Hex; delegationManager: Address; delegator: Address }> {
+  const { createx402DelegationProvider } = await import('@metamask/smart-accounts-kit/experimental')
+
+  const x402DelegationProvider = createx402DelegationProvider({
     account: sessionSigner,
-    chain: publicClient.chain,
-    transport: http(),
-  }).extend(erc7710WalletActions())
+    environment: sessionAccount.environment,
+    parentPermissionContext: permissionContext,
+    expirySeconds,
+    redeemers: redeemer?.length
+      ? {
+        requireRedeemers: true,
+        addresses: [...redeemer],
+      }
+      : undefined,
+  })
 
-  const { permissionContext: redelegatedPermissionContext } =
-    await sessionAccountWalletClient.redelegatePermissionContextOpen({
-      account: sessionSigner,
-      environment: sessionAccount.environment,
-      permissionContext,
-      chainId,
-    })
+  const payload = await x402DelegationProvider(paymentRequirements)
 
-  return redelegatedPermissionContext
+  return {
+    permissionContext: payload.permissionContext as Hex,
+    delegationManager: payload.delegationManager as Address,
+    delegator: payload.delegator as Address,
+  }
 }
 
 export async function ensureMetaMaskFlaskSmartAccount(
@@ -353,9 +373,21 @@ export async function ensureMetaMaskFlaskSmartAccount(
 }
 
 export async function requestMetaMaskExecutionPermission(
-  params: BaseRequestParams & { permission: PermissionTypes }
+  params: BaseRequestParams & {
+    permission: PermissionTypes
+    x402PaymentRequirements?: X402PaymentRequirementsForDelegation
+  }
 ): Promise<GrantedMetaMaskPermission> {
-  const { publicClient, walletClient, chainId, permission, expirySeconds, redeemer, payee } = params
+  const {
+    publicClient,
+    walletClient,
+    chainId,
+    permission,
+    expirySeconds,
+    redeemer,
+    payee,
+    x402PaymentRequirements,
+  } = params
 
   if (!METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS.has(chainId)) {
     throw new Error(`MetaMask Smart Accounts do not support chain ${chainId}`)
@@ -409,12 +441,17 @@ export async function requestMetaMaskExecutionPermission(
     throw new Error('MetaMask Flask did not return a usable ERC-7715 permission context')
   }
 
-  const redelegatedPermissionContext = await createOpenRedelegatedPermissionContext({
-    publicClient,
+  if (!x402PaymentRequirements) {
+    throw new Error('x402 payment requirements are required to create an ERC-7710 payment redelegation')
+  }
+
+  const redelegation = await createOpenRedelegatedPermissionContext({
     sessionSigner,
     sessionAccount,
-    chainId,
     permissionContext: grantedPermission.context,
+    paymentRequirements: x402PaymentRequirements,
+    expirySeconds,
+    redeemer,
   })
 
   const upgradeState = await waitForMetaMaskFlaskUpgrade(publicClient, owner, expectedImpl)
@@ -436,10 +473,11 @@ export async function requestMetaMaskExecutionPermission(
 
   return {
     grantedPermission,
-    redelegatedPermissionContext,
+    redelegatedPermissionContext: redelegation.permissionContext,
+    delegationManager: redelegation.delegationManager,
     sessionSigner,
     sessionAccount,
-    delegator,
+    delegator: redelegation.delegator || delegator,
   }
 }
 
