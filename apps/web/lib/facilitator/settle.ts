@@ -10,6 +10,7 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
+import { USDC_CONFIG } from '@x402/payment'
 import type {
   PaymentHeader,
   PaymentRequirements,
@@ -84,6 +85,50 @@ type SettlementWalletClient = Pick<
   'writeContract'
 >
 
+function usesPaymentPayloadRequest(facilitatorUrl: string): boolean {
+  return facilitatorUrl.includes('dev-api.cx.metamask.io')
+    || facilitatorUrl.includes('x402.org/facilitator')
+}
+
+function withEip712Domain(
+  requirements: PaymentRequirements,
+  chainId: number
+): PaymentRequirements {
+  const tokenConfig = USDC_CONFIG[chainId as keyof typeof USDC_CONFIG]
+
+  return {
+    ...requirements,
+    network: `eip155:${chainId}`,
+    amount: requirements.amount ?? requirements.maxAmountRequired,
+    extra: {
+      ...requirements.extra,
+      name: tokenConfig?.domainName ?? 'USDC',
+      version: tokenConfig?.domainVersion ?? '2',
+    },
+  }
+}
+
+function toFacilitatorPaymentPayload(
+  header: PaymentHeader,
+  paymentRequirements: PaymentRequirements
+) {
+  return {
+    x402Version: 2,
+    accepted: paymentRequirements,
+    payload: {
+      signature: header.payload.signature,
+      authorization: {
+        from: header.payload.from,
+        to: header.payload.to,
+        value: header.payload.value,
+        validAfter: header.payload.validAfter.toString(),
+        validBefore: header.payload.validBefore.toString(),
+        nonce: header.payload.nonce,
+      },
+    },
+  }
+}
+
 /**
  * Forward settlement to the configured x402 facilitator.
  */
@@ -92,11 +137,28 @@ async function settleWithOfficialFacilitator(
   paymentHeaderBase64: string,
   paymentRequirements: PaymentRequirements
 ): Promise<SettleResult> {
-  const settlementRequest = {
-    x402Version: 1,
-    paymentHeader: paymentHeaderBase64,
-    paymentRequirements,
-  }
+  const chainId = parseChainId(paymentRequirements.network)
+  const facilitatorPaymentRequirements = usesPaymentPayloadRequest(facilitatorUrl)
+    ? withEip712Domain(paymentRequirements, chainId)
+    : paymentRequirements
+  const paymentPayload = usesPaymentPayloadRequest(facilitatorUrl)
+    ? toFacilitatorPaymentPayload(
+      JSON.parse(Buffer.from(paymentHeaderBase64, 'base64').toString('utf8')) as PaymentHeader,
+      facilitatorPaymentRequirements
+    )
+    : null
+  const x402Version = paymentPayload?.x402Version ?? 1
+  const settlementRequest = paymentPayload
+    ? {
+      x402Version,
+      paymentPayload,
+      paymentRequirements: facilitatorPaymentRequirements,
+    }
+    : {
+      x402Version,
+      paymentHeader: paymentHeaderBase64,
+      paymentRequirements: facilitatorPaymentRequirements,
+    }
 
   console.log('[Facilitator] Forwarding settlement to official facilitator:', facilitatorUrl)
 
@@ -105,7 +167,7 @@ async function settleWithOfficialFacilitator(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X402-Version': '1',
+        'X402-Version': x402Version.toString(),
       },
       body: JSON.stringify(settlementRequest),
     })
@@ -121,11 +183,25 @@ async function settleWithOfficialFacilitator(
     }
 
     const result = JSON.parse(responseText)
+    const txHash = findTransactionHash(result.txHash)
+      ?? findTransactionHash(result.transactionHash)
+      ?? findTransactionHash(result.tx)
+      ?? findTransactionHash(result)
 
-    if (result.event === 'payment.settled' && result.txHash) {
+    if ((result.event === 'payment.settled' || result.success !== false) && txHash) {
       return {
         success: true,
-        txHash: result.txHash,
+        txHash,
+      }
+    }
+
+    if (result.success === false) {
+      return {
+        success: false,
+        error: [
+          result.errorReason,
+          result.errorMessage ?? result.error,
+        ].filter(Boolean).join(': ') || 'Facilitator settlement failed',
       }
     }
 
@@ -140,6 +216,25 @@ async function settleWithOfficialFacilitator(
       error: error instanceof Error ? error.message : 'Settlement request failed',
     }
   }
+}
+
+function findTransactionHash(value: unknown): Hex | null {
+  if (typeof value === 'string' && /^0x[a-fA-F0-9]{64}$/.test(value)) {
+    return value as Hex
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  for (const candidate of Object.values(value as Record<string, unknown>)) {
+    const txHash = findTransactionHash(candidate)
+    if (txHash) {
+      return txHash
+    }
+  }
+
+  return null
 }
 
 /**

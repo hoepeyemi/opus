@@ -1,6 +1,6 @@
 import { http } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
-import { metaMask } from 'wagmi/connectors'
+import { injected, metaMask } from 'wagmi/connectors'
 
 function getBaseSepoliaRpcUrl(): string {
   return process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || baseSepolia.rpcUrls.default.http[0]
@@ -20,6 +20,13 @@ export function metaMaskConnect(): ReturnType<typeof metaMask> {
       name: 'opus',
       url: getDappUrl(),
     },
+  })
+}
+
+export function metaMaskInjected(): ReturnType<typeof injected> {
+  return injected({
+    target: 'metaMask',
+    unstable_shimAsyncInject: 1_000,
   })
 }
 

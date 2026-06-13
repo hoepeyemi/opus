@@ -37,10 +37,12 @@ export interface PaymentRequirements {
   network: string
   payTo: Address
   asset: Address
+  amount?: string
   maxAmountRequired: string
   maxTimeoutSeconds: number
   description?: string
   mimeType?: string
+  extra?: Record<string, unknown>
 }
 
 /**

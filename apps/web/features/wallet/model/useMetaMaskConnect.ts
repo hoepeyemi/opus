@@ -25,7 +25,12 @@ export function useMetaMaskConnect() {
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
   const [authError, setAuthError] = useState<Error | null>(null)
   const connector = useMemo(
-    () => connectors.find((item) => item.id === 'metaMaskSDK') ?? connectors[0],
+    () => (
+      connectors.find((item) => item.id === 'injected' && item.name.toLowerCase().includes('metamask'))
+      ?? connectors.find((item) => item.id === 'metaMask')
+      ?? connectors.find((item) => item.id === 'metaMaskSDK')
+      ?? connectors[0]
+    ),
     [connectors]
   )
 
@@ -105,6 +110,9 @@ export function useMetaMaskConnect() {
       }
 
       const normalizedError = error instanceof Error ? error : new Error(String(error))
+      if (normalizedError.message.includes('scheme does not have a registered handler')) {
+        normalizedError.message = 'MetaMask extension was not detected. Install or enable MetaMask Flask in this browser, then refresh and connect again.'
+      }
       setAuthError(normalizedError)
       return null
     }

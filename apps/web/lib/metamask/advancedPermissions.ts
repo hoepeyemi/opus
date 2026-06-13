@@ -167,8 +167,13 @@ export async function getOrCreateMetaMaskSessionAccount(
   }
 }
 
-function getPermissionExpiry(expirySeconds?: number): number {
-  const currentTime = Math.floor(Date.now() / 1000)
+async function getChainTimestamp(publicClient: PublicClient): Promise<number> {
+  const block = await publicClient.getBlock()
+  return Number(block.timestamp)
+}
+
+async function getPermissionExpiry(publicClient: PublicClient, expirySeconds?: number): Promise<number> {
+  const currentTime = await getChainTimestamp(publicClient)
   const timeoutSeconds = Math.max(expirySeconds ?? 300, 300)
 
   return currentTime + timeoutSeconds
@@ -426,7 +431,7 @@ export async function requestMetaMaskExecutionPermission(
       {
         chainId,
         to: sessionAccount.address,
-        expiry: getPermissionExpiry(expirySeconds),
+        expiry: await getPermissionExpiry(publicClient, expirySeconds),
         ...(redeemer?.length ? { redeemer } : {}),
         ...(payee?.length ? { payee } : {}),
         permission,

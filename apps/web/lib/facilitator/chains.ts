@@ -8,7 +8,7 @@ import {
   getUsdcAddress as sharedGetUsdcAddress,
   isSupportedChain,
 } from '@x402/payment'
-import { getFacilitatorUrl } from './url'
+import { getSessionKeyFacilitatorUrl } from './url'
 
 /** Default chain ID (testnet) */
 export const defaultChainId = DEFAULT_CHAIN_ID
@@ -23,7 +23,7 @@ export const chainConfigs: Record<number, ChainConfig> = {
   84532: {
     chainId: 84532,
     name: 'base-sepolia',
-    officialFacilitatorUrl: getFacilitatorUrl(),
+    officialFacilitatorUrl: getSessionKeyFacilitatorUrl(),
     usdcAddress: sharedGetUsdcAddress(84532),
     rpcUrl: SHARED_CHAIN_CONFIGS[84532].rpcUrl,
   },
@@ -41,7 +41,7 @@ export function getChainConfig(chainId: number): ChainConfig | null {
 
   return {
     ...chainConfig,
-    officialFacilitatorUrl: getFacilitatorUrl(),
+    officialFacilitatorUrl: getSessionKeyFacilitatorUrl(),
   }
 }
 

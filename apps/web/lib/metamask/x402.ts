@@ -134,6 +134,11 @@ async function assertPayerHasTokenBalance({
   )
 }
 
+async function getBufferedChainStartTime(publicClient: PublicClient): Promise<number> {
+  const block = await publicClient.getBlock()
+  return Number(block.timestamp) - 300
+}
+
 export function isMetaMaskX402SupportedNetwork(network: string): boolean {
   try {
     return METAMASK_SMART_ACCOUNT_SUPPORTED_CHAINS.has(parseChainId(network))
@@ -162,6 +167,8 @@ export async function createMetaMaskX402PaymentSignature({
   }
 
   const paymentAmount = BigInt(getPaymentAmount(requirements))
+  const startTime = await getBufferedChainStartTime(publicClient)
+
   await assertPayerHasTokenBalance({
     publicClient,
     payer: buyerAddress,
@@ -190,7 +197,7 @@ export async function createMetaMaskX402PaymentSignature({
     payee: [requirements.payTo],
     tokenAddress: requirements.asset,
     allowanceAmount: paymentAmount,
-    startTime: Math.floor(Date.now() / 1000),
+    startTime,
     justification: `Permission to pay ${requirements.description ?? 'an x402 API request'} with USDC on Base Sepolia`,
     isAdjustmentAllowed: false,
     x402PaymentRequirements: {
