@@ -202,6 +202,14 @@ function getFriendlyFlaskError(error: unknown): string {
     return 'MetaMask Flask 13.5.0 or later is required for Advanced Permissions (ERC-7715). Your current wallet does not expose wallet_requestExecutionPermissions.'
   }
 
+  if (
+    message.includes('gator_7715_permissions') ||
+    message.includes('batch upsert user storage') ||
+    (message.includes('user storage') && message.includes('Failed to fetch'))
+  ) {
+    return 'MetaMask Flask granted the permission locally but could not sync it to your MetaMask account (user storage request failed: "Failed to fetch"). This usually means MetaMask\'s profile sync/backend is unreachable. Check your internet connection, disable a VPN/ad-blocker that might be blocking MetaMask\'s servers, or turn off "Backup and sync" in MetaMask Flask Settings > Backup and sync, then try again.'
+  }
+
   return message
 }
 

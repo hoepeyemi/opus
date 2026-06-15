@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useAccount, useSignTypedData, useConnection, usePublicClient, useWalletClient } from 'wagmi'
+import { useSignTypedData, useConnection, usePublicClient, useWalletClient } from 'wagmi'
 import type { Address } from 'viem'
 import type { VariableDefinition, VariableType } from '@/features/proxy/model/variables'
 import {
@@ -140,10 +140,6 @@ function normalizeApiTryItError(error: unknown): string {
   return message
 }
 
-function isMetaMaskConnectConnector(connectorId: string | undefined): boolean {
-  return connectorId === 'metaMaskSDK' || connectorId === 'metaMask'
-}
-
 /**
  * Hook for executing API requests with x402 payment
  * Handles EIP-3009 TransferWithAuthorization signing
@@ -158,7 +154,6 @@ export function useApiTryIt({
   useMetaMaskX402 = false,
 }: UseApiTryItOptions): UseApiTryItReturn {
   const { address, chainId } = useConnection()
-  const { connector } = useAccount()
   const { mutateAsync: signTypedData } = useSignTypedData()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
@@ -295,18 +290,12 @@ export function useApiTryIt({
       throw new Error('MetaMask Flask Advanced Permissions require a connected wallet client')
     }
 
-    if (!isMetaMaskConnectConnector(connector?.id)) {
-      throw new Error(
-        'MetaMask Flask Advanced Permissions require the MetaMask Connect wagmi connector. Your wallet is connected through injected MetaMask, likely because MetaMask Connect failed to reach its sender service. Use Session Key for this wallet, or disconnect, refresh, and retry MetaMask Connect.'
-      )
-    }
-
     return createMetaMaskX402PaymentSignature({
       requirements: requirements as MetaMaskX402Requirements,
       publicClient,
       walletClient,
     })
-  }, [connector?.id, publicClient, walletClient])
+  }, [publicClient, walletClient])
 
   /**
    * Create payment header using wallet or session key based on configuration

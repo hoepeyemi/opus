@@ -1,0 +1,276 @@
+name: Build and Deploy opus (web + mcp-server)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME_PROD }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN_PROD }}
+  HOST: ${{ secrets.SSH_HOST_TEMP }}
+  HOST_USERNAME: ${{ secrets.SSH_USERNAME_TEMP }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_TEMP }}
+  WEB_IMAGE: ${{ secrets.DOCKER_USERNAME_PROD }}/opus-web:latest
+  MCP_IMAGE: ${{ secrets.DOCKER_USERNAME_PROD }}/opus-mcp-server:latest
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Build web image (PR validation)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.web
+          push: false
+          tags: opus-web:pr
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_MCP_URL=${{ secrets.NEXT_PUBLIC_MCP_URL }}
+            NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL }}
+            NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID }}
+            NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS }}
+            NEXT_PUBLIC_METAMASK_FLASK_EXTENSION_ID=${{ secrets.NEXT_PUBLIC_METAMASK_FLASK_EXTENSION_ID }}
+            NEXT_PUBLIC_METAMASK_X402_FACILITATORS=${{ secrets.NEXT_PUBLIC_METAMASK_X402_FACILITATORS }}
+            NEXT_PUBLIC_METAMASK_X402_CHAIN_ID=${{ secrets.NEXT_PUBLIC_METAMASK_X402_CHAIN_ID }}
+            NEXT_PUBLIC_METAMASK_X402_ASSET_ADDRESS=${{ secrets.NEXT_PUBLIC_METAMASK_X402_ASSET_ADDRESS }}
+
+      - name: Build MCP image (PR validation)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: false
+          tags: opus-mcp-server:pr
+
+      - name: Build and push web image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_MCP_URL=${{ secrets.NEXT_PUBLIC_MCP_URL }}
+            NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL }}
+            NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID }}
+            NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS=${{ secrets.NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS }}
+            NEXT_PUBLIC_METAMASK_FLASK_EXTENSION_ID=${{ secrets.NEXT_PUBLIC_METAMASK_FLASK_EXTENSION_ID }}
+            NEXT_PUBLIC_METAMASK_X402_FACILITATORS=${{ secrets.NEXT_PUBLIC_METAMASK_X402_FACILITATORS }}
+            NEXT_PUBLIC_METAMASK_X402_CHAIN_ID=${{ secrets.NEXT_PUBLIC_METAMASK_X402_CHAIN_ID }}
+            NEXT_PUBLIC_METAMASK_X402_ASSET_ADDRESS=${{ secrets.NEXT_PUBLIC_METAMASK_X402_ASSET_ADDRESS }}
+          cache-from: type=gha,scope=opus-web
+          cache-to: type=gha,mode=max,scope=opus-web
+
+      - name: Build and push MCP image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: true
+          tags: ${{ env.MCP_IMAGE }}
+          cache-from: type=gha,scope=opus-mcp-server
+          cache-to: type=gha,mode=max,scope=opus-mcp-server
+
+      - name: Deploy to Ubuntu server
+        if: github.event_name == 'push'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.HOST }}
+          username: ${{ env.HOST_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo "Deployment started at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+            APP_DIR=/home/ubuntu/opus
+            WEB_ENV=$APP_DIR/.env.web
+            MCP_ENV=$APP_DIR/.env.mcp
+            MCP_INTERNAL_URL=http://opus-mcp-server:3001
+
+            if [ ! -f "$WEB_ENV" ]; then
+              echo "ERROR: Missing web env file: $WEB_ENV"
+              exit 1
+            fi
+            if [ ! -f "$MCP_ENV" ]; then
+              echo "ERROR: Missing MCP env file: $MCP_ENV"
+              exit 1
+            fi
+
+            echo "Normalizing env file line endings..."
+            sudo sed -i 's/\r$//' "$WEB_ENV" "$MCP_ENV"
+
+            echo "Checking env file syntax..."
+            if grep -nE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]+=' "$WEB_ENV" "$MCP_ENV"; then
+              echo "ERROR: Env keys must not contain spaces before '='. Example: use CHAIN_ID=84532, not CHAIN_ID =84532."
+              exit 1
+            fi
+
+            WEB_PUBLIC_APP_URL=$(grep -E '^NEXT_PUBLIC_APP_URL=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_PUBLIC_MCP_URL=$(grep -E '^NEXT_PUBLIC_MCP_URL=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_BASE_CHAIN_ID=$(grep -E '^NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_AGENT_DELEGATOR=$(grep -E '^NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_METAMASK_FACILITATOR=$(grep -E '^METAMASK_X402_FACILITATOR_URL=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_METAMASK_FACILITATORS=$(grep -E '^METAMASK_X402_FACILITATORS=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            WEB_METAMASK_ASSET=$(grep -E '^METAMASK_X402_ASSET_ADDRESS=' "$WEB_ENV" | tail -n 1 | cut -d= -f2- || true)
+            MCP_PUBLIC_URL=$(grep -E '^MCP_PUBLIC_URL=' "$MCP_ENV" | tail -n 1 | cut -d= -f2- || true)
+            MCP_NEXT_APP_URL=$(grep -E '^NEXT_APP_URL=' "$MCP_ENV" | tail -n 1 | cut -d= -f2- || true)
+            MCP_CHAIN_ID=$(grep -E '^CHAIN_ID=' "$MCP_ENV" | tail -n 1 | cut -d= -f2- || true)
+
+            CANONICAL_WEB_ORIGIN="$WEB_PUBLIC_APP_URL"
+            if [ -z "$CANONICAL_WEB_ORIGIN" ]; then
+              echo "ERROR: Set NEXT_PUBLIC_APP_URL in $WEB_ENV."
+              exit 1
+            fi
+
+            if [ -z "$WEB_PUBLIC_MCP_URL" ]; then
+              echo "WARNING: NEXT_PUBLIC_MCP_URL is not set in .env.web. MCP connection cards may show the local fallback."
+            fi
+            if [ -n "$MCP_PUBLIC_URL" ] && [ "$MCP_PUBLIC_URL" != "$WEB_PUBLIC_MCP_URL" ]; then
+              echo "WARNING: MCP_PUBLIC_URL does not match NEXT_PUBLIC_MCP_URL."
+              echo "  NEXT_PUBLIC_MCP_URL=$WEB_PUBLIC_MCP_URL"
+              echo "  MCP_PUBLIC_URL=$MCP_PUBLIC_URL"
+            fi
+            if [ -n "$MCP_NEXT_APP_URL" ] && [ "$MCP_NEXT_APP_URL" != "$CANONICAL_WEB_ORIGIN" ]; then
+              echo "ERROR: NEXT_APP_URL in .env.mcp must match NEXT_PUBLIC_APP_URL in .env.web."
+              echo "  NEXT_PUBLIC_APP_URL=$CANONICAL_WEB_ORIGIN"
+              echo "  NEXT_APP_URL=$MCP_NEXT_APP_URL"
+              exit 1
+            fi
+
+            if [ -n "$WEB_BASE_CHAIN_ID" ] && [ "$WEB_BASE_CHAIN_ID" != "84532" ]; then
+              echo "ERROR: NEXT_PUBLIC_BASE_SEPOLIA_CHAIN_ID must be 84532 for Base Sepolia."
+              exit 1
+            fi
+            if [ -n "$MCP_CHAIN_ID" ] && [ "$MCP_CHAIN_ID" != "84532" ]; then
+              echo "WARNING: CHAIN_ID in .env.mcp is not 84532. Confirm this is intentional."
+            fi
+            if ! printf '%s' "$WEB_AGENT_DELEGATOR" | grep -Eq '^0x[0-9a-fA-F]{40}$'; then
+              echo "ERROR: NEXT_PUBLIC_BASE_SEPOLIA_AGENT_DELEGATOR_ADDRESS must be set to a valid address in .env.web."
+              exit 1
+            fi
+            if [ -z "$WEB_METAMASK_FACILITATOR" ] || [ -z "$WEB_METAMASK_FACILITATORS" ] || [ -z "$WEB_METAMASK_ASSET" ]; then
+              echo "WARNING: One or more MetaMask x402 env vars are missing in .env.web."
+              echo "WARNING: Expected METAMASK_X402_FACILITATOR_URL, METAMASK_X402_FACILITATORS, METAMASK_X402_ASSET_ADDRESS."
+            fi
+
+            if ! grep -q '^SERVER_PUBLIC_KEY=.*BEGIN PUBLIC KEY' "$WEB_ENV"; then
+              echo "WARNING: SERVER_PUBLIC_KEY in .env.web does not visibly contain BEGIN PUBLIC KEY."
+            fi
+            if ! grep -q '^SERVER_PRIVATE_KEY=.*BEGIN PRIVATE KEY' "$WEB_ENV" "$MCP_ENV"; then
+              echo "WARNING: SERVER_PRIVATE_KEY does not visibly contain BEGIN PRIVATE KEY in one or both env files."
+            fi
+
+            echo "Creating Docker network if missing..."
+            sudo docker network create opus-net >/dev/null 2>&1 || true
+
+            echo "Stopping old containers..."
+            sudo docker stop opus-web opus-mcp-server || true
+            sudo docker rm opus-web opus-mcp-server || true
+
+            echo "Pulling latest images..."
+            sudo docker pull ${{ env.WEB_IMAGE }}
+            sudo docker pull ${{ env.MCP_IMAGE }}
+
+            echo "Starting MCP server..."
+            sudo docker run -d \
+              --name opus-mcp-server \
+              --restart unless-stopped \
+              --network opus-net \
+              -p 3001:3001 \
+              --env-file "$MCP_ENV" \
+              ${{ env.MCP_IMAGE }}
+
+            echo "Starting web app..."
+            sudo docker run -d \
+              --name opus-web \
+              --restart unless-stopped \
+              --network opus-net \
+              -p 3000:3000 \
+              --env-file "$WEB_ENV" \
+              -e MCP_INTERNAL_URL="$MCP_INTERNAL_URL" \
+              ${{ env.WEB_IMAGE }}
+
+            echo "Verifying deployment..."
+            sleep 10
+
+            if ! sudo docker ps --format '{{.Names}}' | grep -q '^opus-web$'; then
+              echo "ERROR: Web container failed to start"
+              sudo docker logs opus-web || true
+              exit 1
+            fi
+
+            if ! sudo docker ps --format '{{.Names}}' | grep -q '^opus-mcp-server$'; then
+              echo "ERROR: MCP container failed to start"
+              sudo docker logs opus-mcp-server || true
+              exit 1
+            fi
+
+            echo "Checking MCP health..."
+            if ! sudo docker exec opus-web wget -qO- "$MCP_INTERNAL_URL/health" >/dev/null; then
+              echo "ERROR: Web container cannot reach MCP server at $MCP_INTERNAL_URL"
+              sudo docker logs --tail 80 opus-web || true
+              sudo docker logs --tail 80 opus-mcp-server || true
+              exit 1
+            fi
+
+            echo "Checking web health..."
+            if ! sudo docker exec opus-web wget -qO- http://localhost:3000/ >/dev/null; then
+              echo "ERROR: Web container did not respond on http://localhost:3000/"
+              sudo docker logs --tail 80 opus-web || true
+              exit 1
+            fi
+
+            echo "OK: Both containers are running"
+            echo "Web logs:"
+            sudo docker logs --tail 30 opus-web
+            echo "MCP logs:"
+            sudo docker logs --tail 30 opus-mcp-server
+            echo "Deployment completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+      - name: Post-deploy verification
+        if: github.event_name == 'push' && success()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.HOST }}
+          username: ${{ env.HOST_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            if sudo docker ps --format '{{.Names}}' | grep -q '^opus-web$'; then
+              echo "Web container status:"
+              sudo docker inspect opus-web --format='Status: {{.State.Status}} | Started At: {{.State.StartedAt}}'
+              sudo docker port opus-web
+            else
+              echo "ERROR: opus-web is not running"
+              exit 1
+            fi
+
+            if sudo docker ps --format '{{.Names}}' | grep -q '^opus-mcp-server$'; then
+              echo "MCP container status:"
+              sudo docker inspect opus-mcp-server --format='Status: {{.State.Status}} | Started At: {{.State.StartedAt}}'
+              sudo docker port opus-mcp-server
+            else
+              echo "ERROR: opus-mcp-server is not running"
+              exit 1
+            fi

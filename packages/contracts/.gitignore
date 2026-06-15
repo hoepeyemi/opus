@@ -1,0 +1,17 @@
+# Dependencies
+/node_modules
+
+# Build outputs
+/dist
+/build
+/bundle
+
+# Test and coverage output
+/coverage
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs and local files
+*.log
+.DS_Store

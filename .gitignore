@@ -1,6 +1,78 @@
-node_modules
-docs
-.claude
-.env.local
-CLAUDE.md
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.*
+
+# Environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build outputs
 dist/
+**/dist/
+build/
+**/build/
+bundle/
+**/bundle/
+out/
+**/out/
+.next/
+**/.next/
+dist-ssr/
+**/dist-ssr/
+
+# Test and coverage output
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+**/next-env.d.ts
+
+# Logs and diagnostics
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Framework and hosting state
+.vercel/
+**/.vercel/
+.turbo/
+**/.turbo/
+
+# Hardhat and local chain artifacts
+hardhat/artifacts/
+hardhat/cache/
+hardhat/types/
+hardhat/coverage/
+hardhat/bundle/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local assistant files
+.claude/
+CLAUDE.md

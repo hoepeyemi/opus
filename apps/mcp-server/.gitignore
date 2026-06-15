@@ -6,17 +6,17 @@
 .env.*
 !.env.example
 
-# Compilation output
+# Build outputs
 /dist
+/build
 /bundle
 
-# Hardhat output
-/artifacts
-/cache
-/types
+# Test and coverage output
 /coverage
+
+# TypeScript
+*.tsbuildinfo
 
 # Logs and local files
 *.log
-*.tsbuildinfo
 .DS_Store
