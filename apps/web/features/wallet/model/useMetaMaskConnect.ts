@@ -24,15 +24,20 @@ export function useMetaMaskConnect() {
   const { address, isConnected } = useConnection()
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
   const [authError, setAuthError] = useState<Error | null>(null)
-  const connector = useMemo(
+  const metaMaskConnectConnector = useMemo(
     () => (
-      connectors.find((item) => item.id === 'injected' && item.name.toLowerCase().includes('metamask'))
+      connectors.find((item) => item.id === 'metaMaskSDK')
       ?? connectors.find((item) => item.id === 'metaMask')
-      ?? connectors.find((item) => item.id === 'metaMaskSDK')
-      ?? connectors[0]
     ),
     [connectors]
   )
+  const injectedMetaMaskConnector = useMemo(
+    () => connectors.find(
+      (item) => item.id === 'injected' && item.name.toLowerCase().includes('metamask')
+    ),
+    [connectors]
+  )
+  const connector = injectedMetaMaskConnector ?? metaMaskConnectConnector ?? connectors[0]
 
   const createServerSession = useCallback(async (walletAddress: Address) => {
     const nonceResponse = await fetch('/api/auth/nonce', {
@@ -113,10 +118,20 @@ export function useMetaMaskConnect() {
       if (normalizedError.message.includes('scheme does not have a registered handler')) {
         normalizedError.message = 'MetaMask extension was not detected. Install or enable MetaMask Flask in this browser, then refresh and connect again.'
       }
+      if (normalizedError.message.includes('Transport request timed out')) {
+        normalizedError.message = 'MetaMask did not respond before the request timed out. Open or unlock MetaMask Flask, confirm this site is connected on Base Sepolia, then try again. If this wallet is already delegated to opus, use Session Key mode for paid requests.'
+      }
       setAuthError(normalizedError)
       return null
     }
-  }, [address, connect, connector, createServerSession, isConnected])
+  }, [
+    address,
+    connect,
+    connector,
+    createServerSession,
+    injectedMetaMaskConnector,
+    isConnected,
+  ])
 
   return {
     open,

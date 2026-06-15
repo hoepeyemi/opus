@@ -78,29 +78,31 @@ export async function POST(request: NextRequest) {
     })
 
     const agentDelegatorAddress = getAgentDelegatorAddress(chainId)
-    const calldata = encodeFunctionData({
-      abi: agentDelegatorAbi,
-      functionName: signatureScheme === 'message'
-        ? 'relayGrantSessionWithMessageSignature'
-        : 'relayGrantSessionWithSignature',
-      args: [
-        ownerAddress as Address,
-        {
-          sessionKey: sessionKeyAddress as Address,
-          allowedTargets: allowedTargets as Address[],
-          allowedSelectors: allowedSelectors as Hex[],
-          validAfter,
-          validUntil,
-          approvedContracts: approvedContracts as {
-            contractAddress: Address
-            nameHash: Hex
-            versionHash: Hex
-          }[],
-          nonce: BigInt(nonce),
-          ownerSignature: ownerSignature as Hex,
-        },
-      ],
-    })
+    const relayGrant = {
+      sessionKey: sessionKeyAddress as Address,
+      allowedTargets: allowedTargets as Address[],
+      allowedSelectors: allowedSelectors as Hex[],
+      validAfter,
+      validUntil,
+      approvedContracts: approvedContracts as {
+        contractAddress: Address
+        nameHash: Hex
+        versionHash: Hex
+      }[],
+      nonce: BigInt(nonce),
+      ownerSignature: ownerSignature as Hex,
+    }
+    const calldata = signatureScheme === 'message'
+      ? encodeFunctionData({
+        abi: agentDelegatorAbi,
+        functionName: 'relayGrantSessionWithMessageSignature',
+        args: [ownerAddress as Address, relayGrant],
+      })
+      : encodeFunctionData({
+        abi: agentDelegatorAbi,
+        functionName: 'relayGrantSessionWithSignature',
+        args: [ownerAddress as Address, relayGrant],
+      })
 
     console.log('[GrantSessionRelayer] Submitting grantSessionWithSignature:', {
       ownerAddress,

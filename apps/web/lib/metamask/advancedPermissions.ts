@@ -226,7 +226,7 @@ function getFriendlyUpgradeError(error: unknown): string {
     message.includes('not available') ||
     message.includes('MethodNotFound')
   ) {
-    return 'MetaMask Flask did not expose wallet_sendCalls, so the app cannot trigger the smart account upgrade programmatically. Update MetaMask Flask, select a MetaMask smart account that supports Base Sepolia, or use the standard wallet x402 flow.'
+    return 'MetaMask Flask did not expose wallet_sendCalls through the current wallet connection. Disconnect this site in MetaMask Flask, refresh opus, reconnect with MetaMask Connect on Base Sepolia, then retry the Flask payment flow.'
   }
 
   return message
