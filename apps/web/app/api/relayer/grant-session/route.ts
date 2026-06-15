@@ -153,16 +153,45 @@ export async function POST(request: NextRequest) {
       nonce: BigInt(nonce),
       ownerSignature: ownerSignature as Hex,
     }
-    const calldata = signatureScheme === 'message'
+    const relayCalldata = signatureScheme === 'message'
       ? encodeFunctionData({
         abi: agentDelegatorAbi,
         functionName: 'relayGrantSessionWithMessageSignature',
-        args: [ownerAddress as Address, relayGrant],
+        args: [owner, relayGrant],
       })
       : encodeFunctionData({
         abi: agentDelegatorAbi,
         functionName: 'relayGrantSessionWithSignature',
-        args: [ownerAddress as Address, relayGrant],
+        args: [owner, relayGrant],
+      })
+    const directCalldata = signatureScheme === 'message'
+      ? encodeFunctionData({
+        abi: agentDelegatorAbi,
+        functionName: 'grantSessionWithMessageSignature',
+        args: [
+          relayGrant.sessionKey,
+          relayGrant.allowedTargets,
+          relayGrant.allowedSelectors,
+          relayGrant.validAfter,
+          relayGrant.validUntil,
+          relayGrant.approvedContracts,
+          relayGrant.nonce,
+          relayGrant.ownerSignature,
+        ],
+      })
+      : encodeFunctionData({
+        abi: agentDelegatorAbi,
+        functionName: 'grantSessionWithSignature',
+        args: [
+          relayGrant.sessionKey,
+          relayGrant.allowedTargets,
+          relayGrant.allowedSelectors,
+          relayGrant.validAfter,
+          relayGrant.validUntil,
+          relayGrant.approvedContracts,
+          relayGrant.nonce,
+          relayGrant.ownerSignature,
+        ],
       })
 
     console.log('[GrantSessionRelayer] Submitting grantSessionWithSignature:', {
@@ -176,15 +205,30 @@ export async function POST(request: NextRequest) {
       signatureScheme,
     })
 
-    const gasEstimate = await publicClient.estimateGas({
-      account: account.address,
-      to: agentDelegatorAddress,
-      data: calldata,
-    })
+    let transactionTarget = agentDelegatorAddress
+    let transactionCalldata = relayCalldata
+    let gasEstimate: bigint
+
+    try {
+      gasEstimate = await publicClient.estimateGas({
+        account: account.address,
+        to: transactionTarget,
+        data: transactionCalldata,
+      })
+    } catch (relayError) {
+      console.warn('[GrantSessionRelayer] Relay wrapper estimate failed; trying direct owner call', relayError)
+      transactionTarget = owner
+      transactionCalldata = directCalldata
+      gasEstimate = await publicClient.estimateGas({
+        account: account.address,
+        to: transactionTarget,
+        data: transactionCalldata,
+      })
+    }
 
     const hash = await walletClient.sendTransaction({
-      to: agentDelegatorAddress,
-      data: calldata,
+      to: transactionTarget,
+      data: transactionCalldata,
       gas: gasEstimate + gasEstimate / BigInt(10),
     })
 
