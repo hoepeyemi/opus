@@ -127,6 +127,19 @@ function convertVariables(
   return result
 }
 
+function normalizeApiTryItError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (
+    message.includes('still not delegated to EIP7702StatelessDeleGator') ||
+    message.includes('is not delegated to EIP7702StatelessDeleGator')
+  ) {
+    return 'This wallet is already delegated to opus AgentDelegator, so MetaMask Flask ERC-7710 payments cannot run on the same account. Turn off "Use MetaMask Flask" and use "Use Session Key", or switch MetaMask to an account delegated to its EIP7702StatelessDeleGator.'
+  }
+
+  return message
+}
+
 /**
  * Hook for executing API requests with x402 payment
  * Handles EIP-3009 TransferWithAuthorization signing
@@ -437,7 +450,7 @@ export function useApiTryIt({
       })
     } catch (err) {
       console.error('[x402 Client] API request failed:', err)
-      setError(err instanceof Error ? err.message : 'Request failed')
+      setError(normalizeApiTryItError(err))
     } finally {
       setIsLoading(false)
     }

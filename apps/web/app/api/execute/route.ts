@@ -10,6 +10,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { agentDelegatorAbi } from '@x402/contracts'
+import { getAgentDelegatorAddress } from '@/lib/smartAccount/agentDelegator'
 
 /**
  * Execute a transaction on behalf of a smart account using a session key signature.
@@ -102,11 +103,16 @@ export async function POST(request: NextRequest) {
       transport: http(rpcUrl),
     })
 
-    // Encode the executeWithSession call
+    const agentDelegatorAddress = getAgentDelegatorAddress(chainId)
+
+    // Encode the relayed executeWithSession call. The outer transaction is
+    // sent to AgentDelegator for explorer visibility, and the contract
+    // forwards into the delegated owner account for storage/execution.
     const calldata = encodeFunctionData({
       abi: agentDelegatorAbi,
-      functionName: 'executeWithSession',
+      functionName: 'relayExecuteWithSession',
       args: [
+        ownerAddress as Address,
         sessionId as Hex,
         mode as Hex,
         executionData as Hex,
@@ -114,12 +120,15 @@ export async function POST(request: NextRequest) {
       ],
     })
 
-    console.log('[Execute] Submitting transaction to:', ownerAddress)
+    console.log('[Execute] Submitting transaction to AgentDelegator:', {
+      agentDelegatorAddress,
+      ownerAddress,
+    })
 
     // Estimate gas
     const gasEstimate = await publicClient.estimateGas({
       account: account.address,
-      to: ownerAddress as Address,
+      to: agentDelegatorAddress,
       data: calldata,
     })
 
@@ -127,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Submit the transaction
     const hash = await walletClient.sendTransaction({
-      to: ownerAddress as Address,
+      to: agentDelegatorAddress,
       data: calldata,
       gas: gasEstimate + (gasEstimate / BigInt(10)), // Add 10% buffer
     })

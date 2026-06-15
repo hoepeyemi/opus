@@ -78,11 +78,29 @@ export const agentDelegatorAbi = [
   {
     anonymous: false,
     inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'bytes32', name: 'sessionId', type: 'bytes32' },
+    ],
+    name: 'SessionExecutionRelayed',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
       { indexed: true, internalType: 'bytes32', name: 'sessionId', type: 'bytes32' },
       { indexed: true, internalType: 'address', name: 'sessionKey', type: 'address' },
       { indexed: false, internalType: 'uint48', name: 'validUntil', type: 'uint48' },
     ],
     name: 'SessionGranted',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'owner', type: 'address' },
+      { indexed: true, internalType: 'bytes32', name: 'sessionId', type: 'bytes32' },
+    ],
+    name: 'SessionGrantRelayed',
     type: 'event',
   },
   {
@@ -136,6 +154,19 @@ export const agentDelegatorAbi = [
     ],
     name: 'executeWithSession',
     outputs: [{ internalType: 'bytes[]', name: '', type: 'bytes[]' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'bytes32', name: 'sessionId', type: 'bytes32' },
+      { internalType: 'bytes32', name: 'mode', type: 'bytes32' },
+      { internalType: 'bytes', name: 'executionData', type: 'bytes' },
+      { internalType: 'bytes', name: 'sessionKeySignature', type: 'bytes' },
+    ],
+    name: 'relayExecuteWithSession',
+    outputs: [{ internalType: 'bytes[]', name: 'results', type: 'bytes[]' }],
     stateMutability: 'nonpayable',
     type: 'function',
   },
@@ -219,6 +250,32 @@ export const agentDelegatorAbi = [
   },
   {
     inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'sessionKey', type: 'address' },
+      { internalType: 'address[]', name: 'allowedTargets', type: 'address[]' },
+      { internalType: 'bytes4[]', name: 'allowedSelectors', type: 'bytes4[]' },
+      { internalType: 'uint48', name: 'validAfter', type: 'uint48' },
+      { internalType: 'uint48', name: 'validUntil', type: 'uint48' },
+      {
+        components: [
+          { internalType: 'address', name: 'contractAddress', type: 'address' },
+          { internalType: 'bytes32', name: 'nameHash', type: 'bytes32' },
+          { internalType: 'bytes32', name: 'versionHash', type: 'bytes32' },
+        ],
+        internalType: 'struct AgentDelegator.ApprovedContract[]',
+        name: 'approvedContracts',
+        type: 'tuple[]',
+      },
+      { internalType: 'uint256', name: 'nonce', type: 'uint256' },
+      { internalType: 'bytes', name: 'ownerSignature', type: 'bytes' },
+    ],
+    name: 'relayGrantSessionWithSignature',
+    outputs: [{ internalType: 'bytes32', name: 'sessionId', type: 'bytes32' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
       { internalType: 'address', name: 'sessionKey', type: 'address' },
       { internalType: 'address[]', name: 'allowedTargets', type: 'address[]' },
       { internalType: 'bytes4[]', name: 'allowedSelectors', type: 'bytes4[]' },
@@ -263,6 +320,32 @@ export const agentDelegatorAbi = [
       { internalType: 'bytes', name: 'ownerSignature', type: 'bytes' },
     ],
     name: 'grantSessionWithMessageSignature',
+    outputs: [{ internalType: 'bytes32', name: 'sessionId', type: 'bytes32' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'sessionKey', type: 'address' },
+      { internalType: 'address[]', name: 'allowedTargets', type: 'address[]' },
+      { internalType: 'bytes4[]', name: 'allowedSelectors', type: 'bytes4[]' },
+      { internalType: 'uint48', name: 'validAfter', type: 'uint48' },
+      { internalType: 'uint48', name: 'validUntil', type: 'uint48' },
+      {
+        components: [
+          { internalType: 'address', name: 'contractAddress', type: 'address' },
+          { internalType: 'bytes32', name: 'nameHash', type: 'bytes32' },
+          { internalType: 'bytes32', name: 'versionHash', type: 'bytes32' },
+        ],
+        internalType: 'struct AgentDelegator.ApprovedContract[]',
+        name: 'approvedContracts',
+        type: 'tuple[]',
+      },
+      { internalType: 'uint256', name: 'nonce', type: 'uint256' },
+      { internalType: 'bytes', name: 'ownerSignature', type: 'bytes' },
+    ],
+    name: 'relayGrantSessionWithMessageSignature',
     outputs: [{ internalType: 'bytes32', name: 'sessionId', type: 'bytes32' }],
     stateMutability: 'nonpayable',
     type: 'function',

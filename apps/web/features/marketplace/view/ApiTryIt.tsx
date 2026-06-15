@@ -48,13 +48,17 @@ export function ApiTryIt({
   const [useSession, setUseSession] = useState(false)
   const [useMetaMaskX402, setUseMetaMaskX402] = useState(false)
   const canUseSession = isSmartAccountEnabled && !!activeSession
+  const isOpusDelegated = isSmartAccountEnabled
+  const canUseMetaMaskX402 = !isOpusDelegated
 
-  // Auto-enable session mode if available
-  // useEffect(() => {
-  //   if (canUseSession && !useSession) {
-  //     setUseSession(true)
-  //   }
-  // }, [canUseSession, useSession])
+  useEffect(() => {
+    if (isOpusDelegated && useMetaMaskX402) {
+      setUseMetaMaskX402(false)
+      if (canUseSession) {
+        setUseSession(true)
+      }
+    }
+  }, [canUseSession, isOpusDelegated, useMetaMaskX402])
 
   const {
     variables,
@@ -230,11 +234,14 @@ export function ApiTryIt({
                   setUseMetaMaskX402(e.target.checked)
                   if (e.target.checked) setUseSession(false)
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !canUseMetaMaskX402}
                 className="size-4 rounded border-input"
               />
               <div className="flex-1">
-                <Label htmlFor="useMetaMaskX402Api" className="flex items-center gap-2 cursor-pointer">
+                <Label
+                  htmlFor="useMetaMaskX402Api"
+                  className={`flex items-center gap-2 ${canUseMetaMaskX402 ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                >
                   <Shield className="size-4" />
                   Use MetaMask Flask
                   <Badge variant="secondary" className="text-xs">
@@ -242,7 +249,10 @@ export function ApiTryIt({
                   </Badge>
                 </Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Requests an Advanced Permission from MetaMask Flask for ERC-7710 x402 payments.
+                  {isOpusDelegated
+                    ? 'Unavailable because this account is already delegated to opus AgentDelegator. Use Session Key for this wallet.'
+                    : 'Requests an Advanced Permission from MetaMask Flask for ERC-7710 x402 payments.'
+                  }
                 </p>
               </div>
             </div>

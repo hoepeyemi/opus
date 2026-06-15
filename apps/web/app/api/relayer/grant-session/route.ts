@@ -10,6 +10,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'
 import { agentDelegatorAbi } from '@x402/contracts'
+import { getAgentDelegatorAddress } from '@/lib/smartAccount/agentDelegator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,24 +77,28 @@ export async function POST(request: NextRequest) {
       transport: http(rpcUrl),
     })
 
+    const agentDelegatorAddress = getAgentDelegatorAddress(chainId)
     const calldata = encodeFunctionData({
       abi: agentDelegatorAbi,
       functionName: signatureScheme === 'message'
-        ? 'grantSessionWithMessageSignature'
-        : 'grantSessionWithSignature',
+        ? 'relayGrantSessionWithMessageSignature'
+        : 'relayGrantSessionWithSignature',
       args: [
-        sessionKeyAddress as Address,
-        allowedTargets as Address[],
-        allowedSelectors as Hex[],
-        validAfter,
-        validUntil,
-        approvedContracts as {
-          contractAddress: Address
-          nameHash: Hex
-          versionHash: Hex
-        }[],
-        BigInt(nonce),
-        ownerSignature as Hex,
+        ownerAddress as Address,
+        {
+          sessionKey: sessionKeyAddress as Address,
+          allowedTargets: allowedTargets as Address[],
+          allowedSelectors: allowedSelectors as Hex[],
+          validAfter,
+          validUntil,
+          approvedContracts: approvedContracts as {
+            contractAddress: Address
+            nameHash: Hex
+            versionHash: Hex
+          }[],
+          nonce: BigInt(nonce),
+          ownerSignature: ownerSignature as Hex,
+        },
       ],
     })
 
@@ -110,12 +115,12 @@ export async function POST(request: NextRequest) {
 
     const gasEstimate = await publicClient.estimateGas({
       account: account.address,
-      to: ownerAddress as Address,
+      to: agentDelegatorAddress,
       data: calldata,
     })
 
     const hash = await walletClient.sendTransaction({
-      to: ownerAddress as Address,
+      to: agentDelegatorAddress,
       data: calldata,
       gas: gasEstimate + gasEstimate / BigInt(10),
     })

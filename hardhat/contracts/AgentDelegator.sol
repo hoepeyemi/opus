@@ -64,6 +64,18 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
         bytes32 versionHash;
     }
 
+    /// @notice Arguments for relayed session grants.
+    struct RelayGrantSession {
+        address sessionKey;
+        address[] allowedTargets;
+        bytes4[] allowedSelectors;
+        uint48 validAfter;
+        uint48 validUntil;
+        ApprovedContract[] approvedContracts;
+        uint256 nonce;
+        bytes ownerSignature;
+    }
+
     /// @dev Execution struct for ERC-7579 batch format
     struct Execution {
         address target;
@@ -78,6 +90,8 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
     event SessionGranted(bytes32 indexed sessionId, address indexed sessionKey, uint48 validUntil);
     event SessionRevoked(bytes32 indexed sessionId);
     event ContractApproved(bytes32 indexed sessionId, address indexed approvedContract);
+    event SessionGrantRelayed(address indexed owner, bytes32 indexed sessionId);
+    event SessionExecutionRelayed(address indexed owner, bytes32 indexed sessionId);
 
     // ========================
     // Errors
@@ -227,6 +241,52 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
             validUntil,
             approvedContracts
         );
+    }
+
+    /// @notice Relay a grantSessionWithSignature call through this implementation contract.
+    /// @dev The call is forwarded to the delegated owner EOA so session storage is
+    /// written to the owner account, while the outer transaction is addressed to
+    /// the AgentDelegator implementation for explorer visibility.
+    function relayGrantSessionWithSignature(
+        address owner,
+        RelayGrantSession calldata grant
+    ) external returns (bytes32 sessionId) {
+        bytes memory result = _callDelegatedOwner(owner, abi.encodeWithSelector(
+            this.grantSessionWithSignature.selector,
+            grant.sessionKey,
+            grant.allowedTargets,
+            grant.allowedSelectors,
+            grant.validAfter,
+            grant.validUntil,
+            grant.approvedContracts,
+            grant.nonce,
+            grant.ownerSignature
+        ));
+
+        sessionId = abi.decode(result, (bytes32));
+        emit SessionGrantRelayed(owner, sessionId);
+    }
+
+    /// @notice Relay a grantSessionWithMessageSignature call through this implementation contract.
+    /// @dev See relayGrantSessionWithSignature for why this exists.
+    function relayGrantSessionWithMessageSignature(
+        address owner,
+        RelayGrantSession calldata grant
+    ) external returns (bytes32 sessionId) {
+        bytes memory result = _callDelegatedOwner(owner, abi.encodeWithSelector(
+            this.grantSessionWithMessageSignature.selector,
+            grant.sessionKey,
+            grant.allowedTargets,
+            grant.allowedSelectors,
+            grant.validAfter,
+            grant.validUntil,
+            grant.approvedContracts,
+            grant.nonce,
+            grant.ownerSignature
+        ));
+
+        sessionId = abi.decode(result, (bytes32));
+        emit SessionGrantRelayed(owner, sessionId);
     }
 
     function _requireValidGrantSessionSignature(
@@ -641,6 +701,40 @@ contract AgentDelegator is Account, SignerERC7702, ERC7821, IERC1271 {
         } else {
             revert UnsupportedExecutionMode();
         }
+    }
+
+    /// @notice Relay executeWithSession through this implementation contract.
+    /// @dev The owner EOA still performs the scoped execution via EIP-7702
+    /// delegation, but the outer transaction is visible on AgentDelegator.
+    function relayExecuteWithSession(
+        address owner,
+        bytes32 sessionId,
+        bytes32 mode,
+        bytes calldata executionData,
+        bytes calldata sessionKeySignature
+    ) external returns (bytes[] memory results) {
+        bytes memory result = _callDelegatedOwner(owner, abi.encodeWithSelector(
+            this.executeWithSession.selector,
+            sessionId,
+            mode,
+            executionData,
+            sessionKeySignature
+        ));
+
+        results = abi.decode(result, (bytes[]));
+        emit SessionExecutionRelayed(owner, sessionId);
+    }
+
+    function _callDelegatedOwner(address owner, bytes memory data) internal returns (bytes memory result) {
+        (bool success, bytes memory returndata) = owner.call(data);
+
+        if (!success) {
+            assembly {
+                revert(add(returndata, 32), mload(returndata))
+            }
+        }
+
+        return returndata;
     }
 
     // ========================
