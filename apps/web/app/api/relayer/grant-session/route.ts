@@ -78,6 +78,67 @@ export async function POST(request: NextRequest) {
     })
 
     const agentDelegatorAddress = getAgentDelegatorAddress(chainId)
+    const owner = ownerAddress as Address
+
+    const ownerCode = await publicClient.getCode({ address: owner })
+    const expectedDelegationCode = `0xef0100${agentDelegatorAddress.slice(2).toLowerCase()}`
+
+    if (!ownerCode || ownerCode === '0x') {
+      return NextResponse.json(
+        {
+          error:
+            `Grant session relay failed: ${owner} is not delegated on Base Sepolia according to the server RPC. ` +
+            `Re-enable the smart account, then retry. If the browser says it is enabled, set BASE_SEPOLIA_RPC_URL on the server to the same reliable Base Sepolia RPC used by the web app.`,
+          diagnostics: {
+            owner,
+            expectedAgentDelegator: agentDelegatorAddress,
+            actualCode: ownerCode ?? '0x',
+            rpcUrl,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    if (ownerCode.toLowerCase() !== expectedDelegationCode) {
+      return NextResponse.json(
+        {
+          error:
+            `Grant session relay failed: ${owner} is delegated to a different implementation. ` +
+            `Re-enable this wallet with the configured Base Sepolia AgentDelegator address.`,
+          diagnostics: {
+            owner,
+            expectedAgentDelegator: agentDelegatorAddress,
+            actualDelegationCode: ownerCode,
+            rpcUrl,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const serverNonce = await publicClient.readContract({
+      address: owner,
+      abi: agentDelegatorAbi,
+      functionName: 'getSessionNonce',
+    })
+
+    if (serverNonce !== BigInt(nonce)) {
+      return NextResponse.json(
+        {
+          error:
+            `Grant session relay failed: stale session nonce. The browser signed nonce ${nonce}, but the server RPC sees nonce ${serverNonce.toString()}. Refresh and try authorizing again.`,
+          diagnostics: {
+            owner,
+            signedNonce: nonce.toString(),
+            serverNonce: serverNonce.toString(),
+            rpcUrl,
+          },
+        },
+        { status: 409 }
+      )
+    }
+
     const relayGrant = {
       sessionKey: sessionKeyAddress as Address,
       allowedTargets: allowedTargets as Address[],
