@@ -2,6 +2,8 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  erc20Abi,
+  formatUnits,
   http,
   parseSignature,
   type Address,
@@ -21,7 +23,6 @@ import { detectSignatureType } from './detect'
 import { unwrapEIP6492 } from './unwrap'
 import { getChainConfig, parseChainId } from './chains'
 import { getDefaultFeeConfig, calculateNetAmount } from './fee'
-import { verifyPayment } from './verify'
 import { paymentNonceRepository } from '@/lib/repositories'
 
 /**
@@ -98,6 +99,7 @@ function withEip712Domain(
 
   return {
     ...requirements,
+    // x402 facilitators expect the canonical CAIP-2 network id.
     network: `eip155:${chainId}`,
     amount: requirements.amount ?? requirements.maxAmountRequired,
     extra: {
@@ -105,6 +107,71 @@ function withEip712Domain(
       name: tokenConfig?.domainName ?? 'USDC',
       version: tokenConfig?.domainVersion ?? '2',
     },
+  }
+}
+
+async function getSettlementDiagnostics(
+  header: PaymentHeader,
+  chainId: number,
+  rpcUrl: string,
+  expectedRecipient: Address,
+  expectedAmount: number
+) {
+  const publicClient = createPublicClient({
+    chain: getViemChain(chainId),
+    transport: http(rpcUrl),
+  })
+
+  try {
+    const [balance, decimalsResult, symbolResult] = await Promise.all([
+      publicClient.readContract({
+        address: header.payload.asset as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [header.payload.from as Address],
+      }),
+      publicClient.readContract({
+        address: header.payload.asset as Address,
+        abi: erc20Abi,
+        functionName: 'decimals',
+      }).catch(() => 6),
+      publicClient.readContract({
+        address: header.payload.asset as Address,
+        abi: erc20Abi,
+        functionName: 'symbol',
+      }).catch(() => 'USDC'),
+    ])
+    const decimals = typeof decimalsResult === 'number' ? decimalsResult : 6
+    const symbol = typeof symbolResult === 'string' ? symbolResult : 'USDC'
+    const requiredAmount = BigInt(header.payload.value)
+
+    return {
+      payer: header.payload.from,
+      recipient: header.payload.to,
+      expectedRecipient,
+      asset: header.payload.asset,
+      chainId,
+      headerAmount: header.payload.value,
+      expectedAmount: expectedAmount.toString(),
+      headerAmountFormatted: `${formatUnits(requiredAmount, decimals)} ${symbol}`,
+      payerBalance: balance.toString(),
+      payerBalanceFormatted: `${formatUnits(balance, decimals)} ${symbol}`,
+      hasEnoughBalance: balance >= requiredAmount,
+      validAfter: header.payload.validAfter,
+      validBefore: header.payload.validBefore,
+      nonce: header.payload.nonce,
+    }
+  } catch (error) {
+    return {
+      payer: header.payload.from,
+      recipient: header.payload.to,
+      expectedRecipient,
+      asset: header.payload.asset,
+      chainId,
+      headerAmount: header.payload.value,
+      expectedAmount: expectedAmount.toString(),
+      diagnosticsError: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 
@@ -416,11 +483,13 @@ export async function settlePayment(
       account
     )
   } else if (chainConfig.officialFacilitatorUrl) {
+    const canonicalNetwork = `eip155:${chainId}`
     const paymentRequirements: PaymentRequirements = {
       scheme: 'exact',
-      network: chainConfig.name,
+      network: canonicalNetwork,
       payTo: expectedRecipient,
       asset: header.payload.asset as Address,
+      amount: expectedAmount.toString(),
       maxAmountRequired: expectedAmount.toString(),
       maxTimeoutSeconds: 300,
       description: 'API access payment',
@@ -434,12 +503,19 @@ export async function settlePayment(
       paymentRequirements
     )
   } else {
-    console.error('[Facilitator] Smart account settlement requires METAMASK_X402_FACILITATOR_URL')
+    console.error('[Facilitator] Smart account settlement requires X402_FACILITATOR_URL')
     return null
   }
 
   if (!result.success || !result.txHash) {
     console.error('[Facilitator] Settlement failed:', result.error)
+    console.error('[Facilitator] Settlement diagnostics:', await getSettlementDiagnostics(
+      header,
+      chainId,
+      chainConfig.rpcUrl,
+      expectedRecipient,
+      expectedAmount
+    ))
     return null
   }
 
