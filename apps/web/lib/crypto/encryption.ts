@@ -35,10 +35,19 @@ let serverPrivateKey: KeyObject | null = null
 
 /**
  * Normalize PEM key from environment variable.
- * Handles escaped newlines (\n as literal string) and converts to actual newlines.
+ * Handles Docker env-file quoting and escaped newlines.
  */
 function normalizePem(pem: string): string {
-  return pem.replace(/\\n/g, '\n')
+  let normalized = pem.trim()
+
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1)
+  }
+
+  return normalized.replace(/\\n/g, '\n')
 }
 
 /**

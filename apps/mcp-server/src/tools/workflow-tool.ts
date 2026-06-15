@@ -101,6 +101,23 @@ const AES_ALGORITHM = 'aes-256-gcm'
 let serverPrivateKey: KeyObject | null = null
 
 /**
+ * Normalize PEM key from environment variable.
+ * Handles Docker env-file quoting and escaped newlines.
+ */
+function normalizePem(pem: string): string {
+  let normalized = pem.trim()
+
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1)
+  }
+
+  return normalized.replace(/\\n/g, '\n')
+}
+
+/**
  * Get the server's RSA private key
  */
 function getServerPrivateKey(): KeyObject {
@@ -111,7 +128,7 @@ function getServerPrivateKey(): KeyObject {
     throw new Error('SERVER_PRIVATE_KEY environment variable is not set')
   }
 
-  serverPrivateKey = createPrivateKey(privateKeyPem.replace(/\\n/g, '\n'))
+  serverPrivateKey = createPrivateKey(normalizePem(privateKeyPem))
   return serverPrivateKey
 }
 
